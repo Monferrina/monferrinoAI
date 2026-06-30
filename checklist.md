@@ -18,7 +18,9 @@ Cosa l'agente verifica/registra a ogni esecuzione. **Ogni run logga su Supabase*
 - [ ] Log completo su Supabase (azioni, decisioni, oversight).
 
 ## Ingest iniziale (una tantum, prima dei run a regime)
-- [ ] **Leggere e ingerire i documenti da `~/Desktop/SAMRUSH/`** nel RAG Supabase (knowledge del proprio sito):
+- [x] **SAMRUSH ingerito (29/6)** → tabelle `seo_keywords` (489 kw: vol/KD/cpc/cluster/source + target_page/intent/is_noise/content_type/status) e `seo_rankings` (37: 16 nostre + 21 vetrariacasalese.it). Dati strutturati, no embedding. Le 10 analisi `.md` restano da embeddare (Voyage) solo quando si definisce il retrieval RAG per il blog.
+- [x] **Check sito live (29/6, firecrawl map):** 17 pagine servizio + 8 blog GIÀ LIVE (i pillar dei report sono pubblicati). Strategia confermata fattibile; slug `target_page` validati sui path reali.
+- [ ] ~~Leggere e ingerire i documenti da `~/Desktop/SAMRUSH/`~~ (fatto sopra):
   - 46 CSV export Semrush (`*_pages_*`, `*_issues_*`, `*_mega_export_*`, structured data, keyword/backlink).
   - 10 analisi `.md` già prodotte (ANALISI_SEO, BACKLINK_E_OPPORTUNITA, PIANO_AEO, ONPAGE_IDEAS, MAPPA_PAGINE_KEYWORD, ROUND5_SINTESI…).
   - `ideas_*.xlsx` (keyword ideas), PDF listing management, dump API in `api_20260623/` e `api_20260624/`.

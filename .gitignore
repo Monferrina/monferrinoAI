@@ -7,6 +7,10 @@
 # Firecrawl local cache
 .firecrawl/
 
+# Skill installate localmente (npx skills add) — ricostruibili, no codice di progetto
+.agents/
+skills-lock.json
+
 # Node
 node_modules/
 dist/
