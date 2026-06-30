@@ -1,0 +1,45 @@
+{
+  "name": "Competitor vetrerie",
+  "goal": "Alert when a competitor adds, removes, or changes services, products, pricing, or promotions (e.g. box doccia/shower enclosures, specchi/mirrors, vetrate, parapetti/railings, serramenti/windows), OR publishes a new blog post / editorial content. Ignore cookie/privacy text, dates, and formatting-only changes.",
+  "cron": "0 9 1 * *",
+  "timezone": "Europe/Rome",
+  "retentionDays": 90,
+  "targets": [
+    {
+      "type": "scrape",
+      "urls": [
+        "https://vetrariacasalese.it",
+        "https://vetrariacasalese.it/box-doccia-casale-monferrato",
+        "https://vetrariacasalese.it/specchi",
+        "https://vetrariacasalese.it/vetrate",
+        "https://vetrariacasalese.it/scale-e-parapetti",
+        "https://vetreriabs.it",
+        "https://www.vetreriabs.it/vetri-e-vetrate",
+        "https://www.vetreriabs.it/serramenti-ed-infissi",
+        "https://www.vetreriabs.it/tende-da-sole-e-zanzariere",
+        "https://www.nuovavetrariaalessandrinasrl.it",
+        "https://www.nuovavetrariaalessandrinasrl.it/box-doccia-vetro-e-cristallo-nuova-vetraria-alessandria",
+        "https://www.nuovavetrariaalessandrinasrl.it/specchi-e-cristalli-prodotti-nuova-vetraria-alessandrina-alessandria",
+        "https://www.nuovavetrariaalessandrinasrl.it/vetri-vetrate-vetreria-alessandria",
+        "https://vetreriavegal.com",
+        "https://vetreriavegal.com/lavorazioni-del-vetro",
+        "https://vetreriavegal.com/parapetti-in-vetro",
+        "https://vetreriavegal.com/scale-in-vetro",
+        "https://vercellivetri.it",
+        "https://vercellivetri.it/shop-vercelli-vetri",
+        "https://vercellivetri.it/blog-di-vercelli-vetri",
+        "https://lanuovavetrinova.it",
+        "https://lanuovavetrinova.it/porte-e-box-doccia",
+        "https://lanuovavetrinova.it/specchi",
+        "https://lanuovavetrinova.it/vetrine",
+        "https://lanuovavetrinova.it/soluzioni-in-vetro",
+        "https://skyglass.it",
+        "https://skyglass.it/blog",
+        "https://skyglass.it/prodotti/vetrate-panoramiche",
+        "https://skyglass.it/prodotti/pareti-vetrate",
+        "https://skyglass.it/prodotti/serre-bioclimatiche"
+      ],
+      "scrapeOptions": {}
+    }
+  ]
+}
