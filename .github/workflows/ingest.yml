@@ -1,0 +1,39 @@
+# Ingest mensile competitor: scrape → embed → insert idempotente in competitor_snapshots.
+# Additivo (niente --fresh): accumula la storia degli snapshot cambiati.
+# Gira solo sul default branch (vincolo GitHub schedule).
+name: Ingest competitor snapshots
+
+on:
+  schedule:
+    - cron: '15 7 1 * *' # 1° del mese ~09:15 Rome estate (dopo il monitor Firecrawl)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Solo scrape+validate, nessun insert (test a costo crediti minimo)'
+        type: boolean
+        default: false
+      limit:
+        description: 'Limita a N pagine (vuoto = tutte le 30)'
+        type: string
+        default: ''
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm install -g firecrawl-cli # il job usa la CLI; si autentica via FIRECRAWL_API_KEY
+      - run: npm run ingest -- ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+        env:
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+          SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REGION: ${{ secrets.SUPABASE_PROJECT_REGION }}

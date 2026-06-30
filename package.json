@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test",
     "test:e2e": "node scripts/e2e.mjs",
-    "ingest": "node scripts/ingest-competitors.mjs"
+    "ingest": "node scripts/ingest-competitors.mjs",
+    "keepalive": "node scripts/keepalive.mjs"
   },
   "dependencies": {
     "pg": "^8.22.0"
