@@ -11,6 +11,15 @@ export function sha256(s) {
   return crypto.createHash('sha256').update(s).digest('hex');
 }
 
+// Euristica page_type dall'URL (per QC/segmentazione, vedi playbook).
+export function pageType(url) {
+  const p = new URL(url).pathname.replace(/\/+$/, '').toLowerCase();
+  if (p === '') return 'home';
+  if (/(^|\/)(blog|news|articol)/.test(p)) return 'blog';
+  if (/(^|\/)(shop|prodott|product|store)/.test(p)) return 'shop';
+  return 'servizio';
+}
+
 // Scrape doc Firecrawl (markdown + metadata + changeTracking) → record DB (senza embedding).
 // L'embedding viene aggiunto a valle dal batch Voyage, poi si valida il record completo.
 export function toSnapshot(doc, page_type) {

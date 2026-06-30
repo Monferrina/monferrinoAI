@@ -4,10 +4,15 @@
 import fs from 'node:fs';
 import pg from 'pg';
 
-// Legge .env.local senza dipendenze (i segreti restano solo lì). Ritorna getter g(KEY).
+// Getter g(KEY): prima process.env (CI/GitHub secrets), poi .env.local (sviluppo).
+// I segreti restano solo in .env.local o nei secrets, mai nel codice.
 export function loadEnv(path = '.env.local') {
-  const env = fs.readFileSync(path, 'utf8');
-  return (k) => env.match(new RegExp(`^${k}=(.+)$`, 'm'))?.[1].trim();
+  let fromFile = () => undefined;
+  try {
+    const env = fs.readFileSync(path, 'utf8');
+    fromFile = (k) => env.match(new RegExp(`^${k}=(.+)$`, 'm'))?.[1].trim();
+  } catch { /* nessun file: solo process.env (CI) */ }
+  return (k) => process.env[k] ?? fromFile(k);
 }
 
 // port 6543 = transaction mode (default, ok per insert batch di produzione).

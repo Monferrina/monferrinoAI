@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toSnapshot, validateSnapshot, sha256, EMBED_DIM } from '../src/snapshot.mjs';
+import { toSnapshot, validateSnapshot, sha256, pageType, EMBED_DIM } from '../src/snapshot.mjs';
+
+test('pageType classifica home/blog/shop/servizio dall’URL', () => {
+  assert.equal(pageType('https://x.it'), 'home');
+  assert.equal(pageType('https://x.it/'), 'home');
+  assert.equal(pageType('https://x.it/blog-di-vercelli-vetri'), 'blog');
+  assert.equal(pageType('https://x.it/shop-vercelli-vetri'), 'shop');
+  assert.equal(pageType('https://x.it/box-doccia-casale-monferrato'), 'servizio');
+});
 
 // --- toSnapshot: trasformazione scrape Firecrawl → record DB ---
 
