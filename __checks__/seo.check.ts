@@ -1,4 +1,4 @@
-import { ApiCheck, AssertionBuilder, Frequency } from 'checkly/constructs';
+import { ApiCheck, AssertionBuilder, CheckGroupV2, Frequency } from 'checkly/constructs';
 
 // Monitoraggio SEO delle pagine che Monferrino cura. Un solo ApiCheck GET per pagina
 // verifica in un colpo: uptime (status 200) E presenza degli elementi SEO base
@@ -13,6 +13,15 @@ import { ApiCheck, AssertionBuilder, Frequency } from 'checkly/constructs';
 
 const baseUrl = 'https://vetreriamonferrina.com';
 
+// Gruppo dedicato all'agente: raccoglie i monitor SEO sotto un'unica vista in Checkly.
+// CheckGroupV2: i check mantengono la PROPRIA config (location/frequenza), il gruppo
+// li raggruppa soltanto → nessun cambio di consumo run.
+// Owned da QUESTO repo (progetto 'monferrino-seo'); il sito ha il suo gruppo separato.
+const agentGroup = new CheckGroupV2('agent-monferrinoai', {
+  name: 'Agent-MonferrinoAI',
+  tags: ['SEO'],
+});
+
 // Pagine servizio target SEO (priorità da seo_keywords) + home.
 const seoPages = [
   { id: 'home', path: '/' },
@@ -25,6 +34,7 @@ const seoPages = [
 for (const page of seoPages) {
   new ApiCheck(`seo-${page.id}`, {
     name: `SEO ${page.path}`,
+    group: agentGroup,
     activated: true,
     frequency: Frequency.EVERY_24H,
     degradedResponseTime: 5000,
@@ -47,6 +57,7 @@ for (const page of seoPages) {
 // Sitemap raggiungibile e valido (è un sitemap-index → contiene <loc>).
 new ApiCheck('seo-sitemap', {
   name: 'SEO sitemap.xml',
+  group: agentGroup,
   activated: true,
   frequency: Frequency.EVERY_24H,
   degradedResponseTime: 5000,
