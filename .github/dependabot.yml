@@ -1,0 +1,39 @@
+# Dependabot version updates — apre PR automatiche per tenere aggiornate le dipendenze.
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates
+version: 2
+updates:
+  # Dipendenze npm del progetto (package.json + package-lock.json in root).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore(deps)
+    # Raggruppa minor/patch in un'unica PR → meno rumore e meno run CI.
+    # Le major restano PR separate (più rischiose, da valutare a mano).
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Versioni delle GitHub Actions usate nei workflow (.github/workflows/).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: chore(ci)
+    groups:
+      actions-all:
+        patterns:
+          - "*"
