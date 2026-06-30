@@ -7,6 +7,9 @@ on:
     - cron: '17 6 * * 1' # lunedì ~08:17 Rome (UTC, evita il minuto :00 per i ritardi GHA)
   workflow_dispatch: {}
 
+permissions:
+  contents: write # per il commit heartbeat
+
 jobs:
   ping:
     runs-on: ubuntu-latest
@@ -27,3 +30,12 @@ jobs:
           SUPABASE_PROJECT_REGION: ${{ secrets.SUPABASE_PROJECT_REGION }}
       - name: Health check sito (home + sitemap + campione pagine)
         run: node scripts/healthcheck.mjs
+      - name: Heartbeat (commit settimanale → repo pubblico mai disattivato dopo 60gg)
+        run: |
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .github/last-keepalive.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/last-keepalive.txt
+          git commit -m "chore: keep-alive heartbeat [skip ci]"
+          git pull --rebase --autostash origin main || true
+          git push || echo "push heartbeat saltato (conflitto): riprova al prossimo run"
