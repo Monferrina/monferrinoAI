@@ -4,7 +4,7 @@ Cosa l'agente verifica/registra a ogni esecuzione. **Ogni run logga su Supabase*
 
 ## Run settimanale (leggera)
 - [x] Keep-alive Supabase (`.github/workflows/keepalive.yml`, lunedì → evita pausa progetto free).
-- [ ] Health check sito: home + pagine chiave raggiungibili (status, tempo).
+- [x] Health check sito: home + sitemap + campione pagine (status, tempo). `scripts/healthcheck.mjs` nel workflow keep-alive; fallisce → alert GitHub.
 - [ ] Log esito su Supabase.
 
 ## Run mensile (completa)

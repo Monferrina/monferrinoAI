@@ -1,6 +1,6 @@
 # Keep-alive settimanale: tiene attivo il progetto Supabase free (pausa dopo 7gg
 # inattività) + health check. Gira solo sul default branch (vincolo GitHub schedule).
-name: Keep-alive Supabase
+name: Keep-alive Supabase + health check sito
 
 on:
   schedule:
@@ -17,10 +17,13 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      - run: node scripts/keepalive.mjs
+      - name: Keep-alive Supabase (evita pausa progetto free)
+        run: node scripts/keepalive.mjs
         env:
           SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
           SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
           SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_REGION: ${{ secrets.SUPABASE_PROJECT_REGION }}
+      - name: Health check sito (home + sitemap + campione pagine)
+        run: node scripts/healthcheck.mjs
