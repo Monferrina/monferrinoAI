@@ -3,11 +3,12 @@
 Cosa l'agente verifica/registra a ogni esecuzione. **Ogni run logga su Supabase** (NON Notion): tabella di log con timestamp, tipo run, azioni proposte, decisioni, esito, supervisione umana (per AI Act).
 
 ## Run settimanale (leggera)
-- [ ] Keep-alive Supabase (una query → evita pausa progetto free).
+- [x] Keep-alive Supabase (`.github/workflows/keepalive.yml`, lunedì → evita pausa progetto free).
 - [ ] Health check sito: home + pagine chiave raggiungibili (status, tempo).
 - [ ] Log esito su Supabase.
 
 ## Run mensile (completa)
+- [x] Ingest competitor → `competitor_snapshots` (`.github/workflows/ingest.yml`, 1° del mese, scrape→embed→insert idempotente).
 - [ ] Scrape sito live (stato corrente, prima di ogni analisi).
 - [x] Competitor: Firecrawl `monitor` (AI-judge) su 7 domini / 30 pagine → diff contenuti. Vedi [`monitor/README.md`](monitor/README.md).
 - [ ] Drift SEO sulle pagine chiave (regressioni meta/heading/schema).
