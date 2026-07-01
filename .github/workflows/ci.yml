@@ -1,0 +1,49 @@
+# CI: esegue la piramide di test del backend su ogni PR e push su main.
+# - unit (test/snapshot.test.mjs): sempre, zero dipendenze esterne.
+# - integration (test/integration.test.mjs): su TEMP TABLE del DB reale (embedding
+#   sintetici → zero crediti Voyage/Firecrawl, zero residui). Si auto-skippa se i
+#   secret DB non ci sono (es. PR da fork) → la CI resta verde.
+# L'e2e (`npm run test:e2e`) NON gira qui: consuma crediti Firecrawl/Voyage, resta manuale.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (unit + integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Passati all'integration test via process.env (loadEnv fa fallback su di esso).
+      # Assenti sui fork → l'integration si skippa da solo.
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+      SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+      SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REGION: ${{ secrets.SUPABASE_PROJECT_REGION }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test (unit + integration temp-table)
+        run: node --test
