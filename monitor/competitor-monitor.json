@@ -4,6 +4,12 @@
   "cron": "0 9 1 * *",
   "timezone": "Europe/Rome",
   "retentionDays": 90,
+  "notification": {
+    "email": {
+      "enabled": true,
+      "recipients": ["giuseppefioravanti@proton.me"]
+    }
+  },
   "targets": [
     {
       "type": "scrape",
