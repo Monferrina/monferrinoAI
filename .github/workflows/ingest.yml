@@ -17,6 +17,12 @@ on:
         type: string
         default: ''
 
+# Least privilege: il job fa solo checkout + npm + script (gli accessi esterni
+# passano via secrets). contents:read basta e silenzia l'alert CodeQL
+# actions/missing-workflow-permissions.
+permissions:
+  contents: read
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
