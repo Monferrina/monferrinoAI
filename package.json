@@ -7,6 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "lint": "eslint .",
     "test": "node --test",
     "test:e2e": "node scripts/e2e.mjs",
     "ingest": "node scripts/ingest-competitors.mjs",
@@ -19,6 +20,9 @@
     "pg": "^8.22.0"
   },
   "devDependencies": {
-    "checkly": "^8.10.0"
+    "@eslint/js": "^10.0.1",
+    "checkly": "^8.10.0",
+    "eslint": "^10.6.0",
+    "globals": "^17.7.0"
   }
 }
