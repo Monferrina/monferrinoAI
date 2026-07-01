@@ -1,4 +1,10 @@
-import { ApiCheck, AssertionBuilder, CheckGroupV2, Frequency } from 'checkly/constructs';
+import {
+  ApiCheck,
+  AssertionBuilder,
+  CheckGroupV2,
+  EmailAlertChannel,
+  Frequency,
+} from 'checkly/constructs';
 
 // Monitoraggio SEO delle pagine che Monferrino cura. Un solo ApiCheck GET per pagina
 // verifica in un colpo: uptime (status 200) E presenza degli elementi SEO base
@@ -22,6 +28,21 @@ const agentGroup = new CheckGroupV2('agent-monferrinoai', {
   tags: ['SEO'],
 });
 
+// Canale di alert: email a Giuseppe su FAIL e ripristino dei check SEO.
+// L'indirizzo è già pubblico in SECURITY.md → nessuna nuova esposizione.
+// CheckGroupV2 non accetta alertChannels in questa versione → il canale si
+// allega per-check (sotto). sendDegraded off: soglie degraded/maxResponseTime
+// già generose, niente spam sui rallentamenti. sslExpiry on: avvisa 30gg prima
+// della scadenza del certificato TLS del sito.
+const emailChannel = new EmailAlertChannel('email-giuseppe', {
+  address: 'giuseppefioravanti@proton.me',
+  sendFailure: true,
+  sendRecovery: true,
+  sendDegraded: false,
+  sslExpiry: true,
+  sslExpiryThreshold: 30,
+});
+
 // Pagine servizio target SEO (priorità da seo_keywords) + home.
 const seoPages = [
   { id: 'home', path: '/' },
@@ -35,6 +56,7 @@ for (const page of seoPages) {
   new ApiCheck(`seo-${page.id}`, {
     name: `SEO ${page.path}`,
     group: agentGroup,
+    alertChannels: [emailChannel],
     activated: true,
     frequency: Frequency.EVERY_24H,
     degradedResponseTime: 5000,
