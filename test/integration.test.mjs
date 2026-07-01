@@ -19,6 +19,7 @@ before(async () => {
   await client.connect();
   // temp table = clone con vincoli/indici (incl. UNIQUE(url,content_hash) e vector(1024))
   await client.query('create temp table competitor_snapshots (like public.competitor_snapshots including all)');
+  await client.query('create temp table site_pages (like public.site_pages including all)');
 });
 after(async () => { if (client) await client.end(); });
 
@@ -72,6 +73,15 @@ test('retrieval cosine: la query torna prima la riga semanticamente più vicina'
     [`[${q.join(',')}]`],
   );
   assert.equal(rows[0].url, 'https://esempio.it/a');
+});
+
+test('param table: insert in site_pages finisce in site_pages, non in competitor_snapshots', { skip }, async () => {
+  await client.query('truncate competitor_snapshots');
+  await client.query('truncate site_pages');
+  const r = rec({ domain: 'vetreriamonferrina.com', url: 'https://vetreriamonferrina.com/servizi/parapetti' });
+  assert.equal(await insertSnapshot(client, r, 'site_pages'), 1);
+  assert.equal((await client.query('select count(*)::int n from site_pages')).rows[0].n, 1);
+  assert.equal(await count(), 0); // NON deve aver toccato competitor_snapshots
 });
 
 test('il DB rifiuta un embedding di dimensione errata (vincolo vector(1024))', { skip }, async () => {

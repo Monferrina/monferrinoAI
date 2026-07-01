@@ -2,10 +2,10 @@
 // On-demand (`npm run test:e2e`): tocca rete e consuma ~2 crediti Firecrawl (Voyage gratis).
 // Insert in TEMP TABLE (session mode) → zero residui in produzione. Self-check con assert.
 
-import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { toSnapshot, validateSnapshot, EMBED_DIM } from '../src/snapshot.mjs';
 import { makeClient, loadEnv, insertSnapshot } from '../src/db.mjs';
+import { scrape, embed } from '../src/fetchers.mjs';
 
 const g = loadEnv('.env.local');
 const VOYAGE = g('VOYAGE_API_KEY');
@@ -16,29 +16,12 @@ const URLS = [
   { url: 'https://vetrariacasalese.it/box-doccia-casale-monferrato', page_type: 'servizio' },
 ];
 
-function scrape(url) {
-  const out = execFileSync('firecrawl', ['scrape', url, '--format', 'markdown', '--json'], { encoding: 'utf8', maxBuffer: 50_000_000 });
-  const j = JSON.parse(out);
-  return j.data ?? j;
-}
-
-async function embed(texts, input_type) {
-  const r = await fetch('https://api.voyageai.com/v1/embeddings', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${VOYAGE}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: texts, model: 'voyage-4', input_type }),
-  });
-  const b = await r.json();
-  if (!r.ok) throw new Error('Voyage: ' + JSON.stringify(b));
-  return b.data.map((d) => d.embedding);
-}
-
-// 1-2. scrape → record
-const docs = URLS.map(({ url, page_type }) => toSnapshot(scrape(url), page_type));
+// 1-2. scrape → record (full content, no retry: 2 pagine controllate)
+const docs = URLS.map(({ url, page_type }) => toSnapshot(scrape(url, { onlyMainContent: false, retry: false }), page_type));
 console.log('scrape ok:', docs.map((d) => d.domain + new URL(d.url).pathname));
 
 // 3. embed (documenti)
-const embs = await embed(docs.map((d) => d.content_md), 'document');
+const embs = await embed(docs.map((d) => d.content_md), 'document', VOYAGE);
 docs.forEach((d, i) => { d.embedding = embs[i]; });
 
 // 4. validate l'intera catena
@@ -54,7 +37,7 @@ for (const d of docs) inserted += await insertSnapshot(client, d);
 assert.equal(inserted, docs.length, 'insert incompleti');
 
 // 6. similarity: per "box doccia" la pagina specifica deve battere la home
-const [q] = await embed(['box doccia su misura per il bagno'], 'query');
+const [q] = await embed(['box doccia su misura per il bagno'], 'query', VOYAGE);
 const { rows } = await client.query(
   `select url, round((embedding <=> $1::vector)::numeric, 4) as cos
    from competitor_snapshots order by embedding <=> $1::vector`,
