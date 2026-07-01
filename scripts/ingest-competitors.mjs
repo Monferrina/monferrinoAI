@@ -13,6 +13,7 @@
 import { execFileSync } from 'node:child_process';
 import { toSnapshot, validateSnapshot, pageType } from '../src/snapshot.mjs';
 import { makeClient, loadEnv, insertSnapshot } from '../src/db.mjs';
+import { scrape, embed } from '../src/fetchers.mjs';
 
 // Monitor "Competitor vetrerie" — source of truth della lista URL (vedi monitor/README.md)
 const MONITOR_ID = '019f1363-7672-736b-af55-3e04baad06fd';
@@ -28,33 +29,6 @@ const mon = JSON.parse(execFileSync('firecrawl', ['monitor', 'get', MONITOR_ID],
 const urls = mon.targets.flatMap((t) => t.urls).slice(0, argLimit);
 console.log(`Ingest ${urls.length} pagine dal monitor "${mon.name}" (dry-run: ${dryRun})`);
 
-// scrape singolo con 1 retry (rate limit/errore transitorio). Ritorna doc o null.
-function scrape(url) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const out = execFileSync('firecrawl', ['scrape', url, '--format', 'markdown', '--only-main-content', '--json'],
-        { encoding: 'utf8', maxBuffer: 50_000_000, stdio: ['ignore', 'pipe', 'ignore'] });
-      const j = JSON.parse(out);
-      return j.data ?? j;
-    } catch (e) {
-      if (attempt === 0) { console.warn(`  retry ${url}`); continue; }
-      console.error(`  SCRAPE FALLITO ${url}: ${e.message.split('\n')[0]}`);
-      return null;
-    }
-  }
-}
-
-async function embed(texts, input_type) {
-  const r = await fetch('https://api.voyageai.com/v1/embeddings', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${VOYAGE}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: texts, model: 'voyage-4', input_type }),
-  });
-  const b = await r.json();
-  if (!r.ok) throw new Error('Voyage: ' + JSON.stringify(b));
-  return b.data.map((d) => d.embedding);
-}
-
 // 1-2. scrape → record (gli scrape falliti si scartano)
 const docs = [];
 for (const url of urls) {
@@ -65,7 +39,7 @@ console.log(`scrape ok: ${docs.length}/${urls.length}`);
 if (!docs.length) process.exit(1);
 
 // 3. embed (un solo batch: 30 pagine « 8M TPM Tier 1)
-const embs = await embed(docs.map((d) => d.content_md), 'document');
+const embs = await embed(docs.map((d) => d.content_md), 'document', VOYAGE);
 docs.forEach((d, i) => { d.embedding = embs[i]; });
 
 // 4. validate → scarta i malformati (mai inserire dati sporchi)

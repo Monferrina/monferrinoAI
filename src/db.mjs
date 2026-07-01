@@ -37,12 +37,14 @@ const COLS = [
 ];
 
 // Insert idempotente: ON CONFLICT (url, content_hash) DO NOTHING.
-// Tabella non qualificata → in produzione colpisce public.competitor_snapshots,
-// nei test la temp table omonima (precedenza nella search_path). Ritorna 1=inserito, 0=duplicato.
-export async function insertSnapshot(client, r) {
+// `table` = nome tabella (default competitor_snapshots; site_pages per il proprio sito).
+// Tabella non qualificata → in produzione colpisce public.<table>, nei test la temp
+// table omonima (precedenza nella search_path). Nome table = code-controlled, mai user
+// input → interpolazione sicura. Ritorna 1=inserito, 0=duplicato.
+export async function insertSnapshot(client, r, table = 'competitor_snapshots') {
   const placeholders = COLS.map((c, i) => (c === 'embedding' ? `$${i + 1}::vector` : `$${i + 1}`));
   const values = COLS.map((c) => (c === 'embedding' ? `[${r.embedding.join(',')}]` : r[c] ?? null));
-  const sql = `insert into competitor_snapshots (${COLS.join(', ')})
+  const sql = `insert into ${table} (${COLS.join(', ')})
     values (${placeholders.join(', ')})
     on conflict (url, content_hash) do nothing`;
   const res = await client.query(sql, values);

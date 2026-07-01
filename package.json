@@ -11,6 +11,7 @@
     "test": "node --test",
     "test:e2e": "node scripts/e2e.mjs",
     "ingest": "node scripts/ingest-competitors.mjs",
+    "ingest:site": "node scripts/ingest-site.mjs",
     "keepalive": "node scripts/keepalive.mjs",
     "healthcheck": "node scripts/healthcheck.mjs",
     "checkly:test": "checkly test",

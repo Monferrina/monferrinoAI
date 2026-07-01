@@ -35,6 +35,7 @@ flowchart TD
         HEALTH["healthcheck.mjs"]
         HEART["heartbeat<br/>→ branch 'heartbeat'"]
         INGEST["ingest-competitors.mjs"]
+        INGSITE["ingest-site.mjs"]
     end
 
     subgraph EXT["Servizi esterni"]
@@ -45,6 +46,7 @@ flowchart TD
 
     subgraph DB["🗄️ Supabase — Postgres + pgvector"]
         SNAP["competitor_snapshots"]
+        SITEPG["site_pages<br/>(KB proprio sito)"]
         RAG["RAG store<br/>(embeddings)"]
     end
 
@@ -56,8 +58,11 @@ flowchart TD
     KA --> HEART
     ING --> INGEST --> FC --> VOY --> RAG
     INGEST --> SNAP
+    INGSITE --> FC
+    SITE --> INGSITE --> SITEPG
     CHK --> CL --> SITE
     RAG -. contesto SEO .-> AGENT
+    SITEPG -. "cosa esiste già" .-> AGENT
     AGENT -. PR enrichment .-> SITE
 ```
 
@@ -79,10 +84,12 @@ flowchart TD
 ```
 .
 ├── src/
-│   ├── db.mjs                  # accesso Supabase (pg)
-│   └── snapshot.mjs            # normalizzazione snapshot competitor
+│   ├── db.mjs                  # accesso Supabase (pg) + insert idempotente
+│   ├── fetchers.mjs            # scrape (Firecrawl) + embed (Voyage) condivisi
+│   └── snapshot.mjs            # normalizzazione snapshot (competitor + sito)
 ├── scripts/
-│   ├── ingest-competitors.mjs  # scraping Firecrawl → embeddings → Supabase
+│   ├── ingest-competitors.mjs  # scraping Firecrawl → embeddings → competitor_snapshots
+│   ├── ingest-site.mjs         # scraping proprio sito → embeddings → site_pages (KB)
 │   ├── keepalive.mjs           # ping DB (evita pausa Supabase free 7gg)
 │   ├── healthcheck.mjs         # health check del sito
 │   └── e2e.mjs                 # test end-to-end
