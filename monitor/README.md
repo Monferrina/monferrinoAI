@@ -7,8 +7,11 @@ Config riproducibile in [`competitor-monitor.json`](./competitor-monitor.json).
 - **Costo:** 30 URL × 2 cr/check (AI-judge raddoppia) = **~60 cr/mese** → ampio margine sul free tier (1.000/mese)
 - **AI-judge ON:** filtra rumore (cookie/privacy/date/formattazione), notifica solo modifiche reali a servizi/prodotti/prezzi/promo **o** nuovi articoli blog
 - **Retention:** 90 giorni
+- **Notifiche:** email a `giuseppefioravanti@proton.me` sui cambi reali (`notification.email` nel JSON). Firecrawl richiede **opt-in**: il destinatario riceve una mail di conferma da accettare una volta.
 
 Riapplicare la config: `firecrawl monitor update <id> competitor-monitor.json` (targets); il `goal` va passato col flag `--goal`.
+
+> Applicare le notifiche **dopo** il run mensile per non perdere il diff del mese in corso.
 
 ## Analisi delle 12 mappe → set monitorato
 
