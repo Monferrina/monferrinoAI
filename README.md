@@ -15,7 +15,6 @@
 [![CodeQL](https://img.shields.io/badge/CodeQL-security-2088FF?logo=github&logoColor=white)](https://codeql.github.com)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot&logoColor=white)](https://github.com/Monferrina/monferrinoAI/network/updates)
 [![License](https://img.shields.io/badge/License-All_Rights_Reserved-red)](https://github.com/Monferrina/monferrinoAI)
-[![Made by MK023](https://img.shields.io/badge/Made_by-MK023-181717?logo=github&logoColor=white)](https://github.com/MK023)
 
 ---
 
