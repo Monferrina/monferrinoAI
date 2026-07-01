@@ -1,0 +1,58 @@
+name: Backup DB → R2
+
+# Backup del DB Supabase (schema public) su Cloudflare R2.
+# Free tier Supabase = niente backup automatici → ce li facciamo noi.
+# Settimanale (lunedì) + mensile (il 2, dopo l'ingest del 1°) + on-demand.
+# Retention: gestita dalle lifecycle rule del bucket R2 (weekly/ e monthly/).
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # settimanale — lunedì 03:00 UTC → prefix weekly/
+    - cron: '0 4 2 * *' # mensile — il 2 del mese 04:00 UTC → prefix monthly/
+  workflow_dispatch:
+    inputs:
+      prefix:
+        description: 'Cartella su R2 (per test manuali)'
+        default: 'manual'
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installa pg_dump 17
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Determina il prefisso dal trigger
+        id: p
+        env:
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          DISPATCH_PREFIX: ${{ github.event.inputs.prefix || 'manual' }}
+        run: |
+          case "$EVENT_SCHEDULE" in
+            '0 3 * * 1') echo "prefix=weekly" >> "$GITHUB_OUTPUT" ;;
+            '0 4 2 * *') echo "prefix=monthly" >> "$GITHUB_OUTPUT" ;;
+            *) echo "prefix=$DISPATCH_PREFIX" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Backup → R2
+        env:
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+          SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REGION: ${{ secrets.SUPABASE_PROJECT_REGION }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          PREFIX: ${{ steps.p.outputs.prefix }}
+        run: bash scripts/backup-db.sh "$PREFIX"
