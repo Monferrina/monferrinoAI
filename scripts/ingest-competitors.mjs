@@ -11,7 +11,7 @@
 // Costo: ~1 credito Firecrawl/pagina (scrape only-main-content, no judge). Voyage gratis (free tier per-modello).
 
 import { execFileSync } from 'node:child_process';
-import { toSnapshot, validateSnapshot, pageType, EMBED_DIM } from '../src/snapshot.mjs';
+import { toSnapshot, validateSnapshot, pageType } from '../src/snapshot.mjs';
 import { makeClient, loadEnv, insertSnapshot } from '../src/db.mjs';
 
 // Monitor "Competitor vetrerie" — source of truth della lista URL (vedi monitor/README.md)
