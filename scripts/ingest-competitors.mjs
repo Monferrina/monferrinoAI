@@ -36,7 +36,13 @@ for (const url of urls) {
   if (doc) docs.push(toSnapshot({ ...doc, metadata: { ...doc.metadata, sourceURL: doc.metadata?.sourceURL || url } }, pageType(url)));
 }
 console.log(`scrape ok: ${docs.length}/${urls.length}`);
-if (!docs.length) process.exit(1);
+// Soglia minima: sotto l'80% di scrape riusciti il run fallisce (exit 1). Senza,
+// bastava 1/30 pagina per un run "verde" che maschera un ingest quasi vuoto.
+const MIN_OK_RATIO = 0.8;
+if (docs.length < Math.ceil(urls.length * MIN_OK_RATIO)) {
+  console.error(`scrape sotto soglia (${docs.length}/${urls.length} < ${MIN_OK_RATIO * 100}%): abort.`);
+  process.exit(1);
+}
 
 // 3. embed (un solo batch: 30 pagine « 8M TPM Tier 1)
 const embs = await embed(docs.map((d) => d.content_md), 'document', VOYAGE);
