@@ -40,4 +40,7 @@ jobs:
           echo "$TS" > last-keepalive.txt
           git add last-keepalive.txt
           git commit -m "chore: keep-alive heartbeat $TS [skip ci]"
-          git push -f origin heartbeat || echo "push heartbeat saltato: riprova al prossimo run"
+          # niente '|| echo': se il push fallisce lo step DEVE diventare rosso.
+          # Con il fallback il run restava verde per settimane e dopo 60gg GitHub
+          # disattivava lo scheduled workflow senza alcun segnale.
+          git push -f origin heartbeat
