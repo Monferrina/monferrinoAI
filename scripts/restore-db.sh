@@ -27,6 +27,9 @@ aws s3 cp "s3://${R2_BUCKET}/${KEY}" "$TMP" \
   --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 echo "applico il dump con psql…"
-gunzip -c "$TMP" | psql "$TARGET"
+# ON_ERROR_STOP + single-transaction: senza, psql esce 0 anche su restore parziale
+# → "✅ restore completato" ingannevole. Con questi, un errore aborta e rende exit≠0
+# (set -e ferma lo script prima del messaggio di successo).
+gunzip -c "$TMP" | psql --set ON_ERROR_STOP=1 --single-transaction "$TARGET"
 rm -f "$TMP"
 echo "✅ restore completato"
