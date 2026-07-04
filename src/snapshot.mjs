@@ -6,6 +6,9 @@ import crypto from 'node:crypto';
 import { URL } from 'node:url';
 
 export const EMBED_DIM = 1024; // voyage-4
+// Cap sul markdown prima di embed+hash: evita payload Voyage sovradimensionati.
+// ponytail: cap fisso ~8k token; alzalo se il RAG deve indicizzare pagine più lunghe.
+export const MAX_CONTENT_CHARS = 32_000;
 
 export function sha256(s) {
   return crypto.createHash('sha256').update(s).digest('hex');
@@ -26,7 +29,7 @@ export function toSnapshot(doc, page_type) {
   const m = doc.metadata ?? {};
   const ct = doc.changeTracking;
   const url = m.sourceURL || m.url;
-  const content_md = doc.markdown || '';
+  const content_md = (doc.markdown || '').slice(0, MAX_CONTENT_CHARS);
   return {
     domain: new URL(url).hostname.replace(/^www\./, ''),
     url,

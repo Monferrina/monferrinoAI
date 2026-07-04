@@ -12,12 +12,14 @@ export function scrape(url, { onlyMainContent = true, retry = true } = {}) {
   for (let attempt = 0; attempt <= (retry ? 1 : 0); attempt++) {
     try {
       const out = execFileSync('firecrawl', args,
-        { encoding: 'utf8', maxBuffer: 50_000_000, stdio: ['ignore', 'pipe', 'ignore'] });
+        { encoding: 'utf8', maxBuffer: 50_000_000, stdio: ['ignore', 'pipe', 'pipe'] });
       const j = JSON.parse(out);
       return j.data ?? j;
     } catch (e) {
       if (retry && attempt === 0) { console.warn(`  retry ${url}`); continue; }
-      console.error(`  SCRAPE FALLITO ${url}: ${e.message.split('\n')[0]}`);
+      // stderr della CLI = errore vero (rate-limit, auth, URL morto); più utile del generico "Command failed".
+      const detail = (e.stderr?.toString().trim() || e.message).split('\n')[0];
+      console.error(`  SCRAPE FALLITO ${url}: ${detail}`);
       return null;
     }
   }
@@ -30,7 +32,9 @@ export async function embed(texts, input_type, apiKey) {
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ input: texts, model: 'voyage-4', input_type }),
   });
+  // r.ok PRIMA di r.json(): un 5xx/rate-limit può tornare HTML/testo → r.json() esploderebbe
+  // con un errore opaco, nascondendo lo status reale.
+  if (!r.ok) throw new Error(`Voyage ${r.status}: ${(await r.text().catch(() => '')).slice(0, 500)}`);
   const b = await r.json();
-  if (!r.ok) throw new Error('Voyage: ' + JSON.stringify(b));
   return b.data.map((d) => d.embedding);
 }

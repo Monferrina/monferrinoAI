@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toSnapshot, validateSnapshot, sha256, pageType, EMBED_DIM } from '../src/snapshot.mjs';
+import { toSnapshot, validateSnapshot, sha256, pageType, EMBED_DIM, MAX_CONTENT_CHARS } from '../src/snapshot.mjs';
 
 test('pageType classifica home/blog/shop/servizio dall’URL', () => {
   assert.equal(pageType('https://x.it'), 'home');
@@ -40,6 +40,13 @@ test('toSnapshot calcola content_hash = sha256(content_md)', () => {
   const r = toSnapshot(SCRAPE, 'servizio');
   assert.equal(r.content_hash, sha256(SCRAPE.markdown));
   assert.match(r.content_hash, /^[0-9a-f]{64}$/);
+});
+
+test('toSnapshot tronca content_md oltre il cap e l’hash resta coerente col troncato', () => {
+  const long = 'a'.repeat(MAX_CONTENT_CHARS + 500);
+  const r = toSnapshot({ markdown: long, metadata: { url: 'https://x.it/' } }, 'home');
+  assert.equal(r.content_md.length, MAX_CONTENT_CHARS);
+  assert.equal(r.content_hash, sha256(long.slice(0, MAX_CONTENT_CHARS)));
 });
 
 test('toSnapshot usa metadata.url come fallback e gestisce campi opzionali assenti', () => {
