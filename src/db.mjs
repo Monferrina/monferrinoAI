@@ -4,6 +4,10 @@
 import fs from 'node:fs';
 import pg from 'pg';
 
+// CA Supabase (prod-ca-2021, "Supabase Root 2021 CA") — self-signed, non nelle CA di sistema.
+// Pinnata per il verify-full: senza, l'unica alternativa era rejectUnauthorized:false (fail-open).
+const SUPABASE_CA = fs.readFileSync(new URL('../certs/supabase-prod-ca-2021.crt', import.meta.url), 'utf8');
+
 // Getter g(KEY): prima process.env (CI/GitHub secrets), poi .env.local (sviluppo).
 // I segreti restano solo in .env.local o nei secrets, mai nel codice.
 export function loadEnv(path = '.env.local') {
@@ -27,7 +31,9 @@ export function makeClient(g, { port = 6543 } = {}) {
     database: g('SUPABASE_DB_NAME'),
     user: `${g('SUPABASE_DB_USER')}.${ref}`, // postgres.<ref>
     password: g('SUPABASE_DB_PASSWORD'), // raw (contiene '#'): niente url-encoding
-    ssl: { rejectUnauthorized: false },
+    // verify-full: CA pinnata + verifica hostname (rejectUnauthorized default true).
+    // Era { rejectUnauthorized: false } = fail-open, nessuna difesa dal MITM.
+    ssl: { ca: SUPABASE_CA },
   });
 }
 

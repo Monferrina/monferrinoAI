@@ -5,7 +5,9 @@ name: Ingest competitor snapshots
 
 on:
   schedule:
-    - cron: '15 7 1 * *' # 1° del mese ~09:15 Rome estate (dopo il monitor Firecrawl)
+    - cron: '0 9 1 * *' # 1° del mese, 09:00 UTC = 10:00 (inverno) / 11:00 (estate) Rome.
+    # Sempre DOPO il monitor Firecrawl del mattino: 09:00 UTC è oltre il monitor in
+    # entrambe le stagioni, così il DST non anticipa più l'ingest davanti al monitor.
   workflow_dispatch:
     inputs:
       dry_run:

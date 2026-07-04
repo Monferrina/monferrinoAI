@@ -30,12 +30,17 @@ const urls = mon.targets.flatMap((t) => t.urls).slice(0, argLimit);
 console.log(`Ingest ${urls.length} pagine dal monitor "${mon.name}" (dry-run: ${dryRun})`);
 
 // 1-2. scrape → record (gli scrape falliti si scartano)
-const docs = [];
+let docs = [];
 for (const url of urls) {
   const doc = scrape(url);
   if (doc) docs.push(toSnapshot({ ...doc, metadata: { ...doc.metadata, sourceURL: doc.metadata?.sourceURL || url } }, pageType(url)));
 }
 console.log(`scrape ok: ${docs.length}/${urls.length}`);
+// Scarta le pagine 4xx/5xx PRIMA di embed: il loro markdown d'errore inquinerebbe il RAG
+// (e falserebbe la soglia sotto: una valanga di 404 = ingest vuoto → deve fallire).
+const before4xx = docs.length;
+docs = docs.filter((d) => d.status_code < 400);
+if (docs.length < before4xx) console.warn(`  scartate ${before4xx - docs.length} pagine con status_code >= 400.`);
 // Soglia minima: sotto l'80% di scrape riusciti il run fallisce (exit 1). Senza,
 // bastava 1/30 pagina per un run "verde" che maschera un ingest quasi vuoto.
 const MIN_OK_RATIO = 0.8;
@@ -62,9 +67,18 @@ if (dryRun) { console.log('dry-run: nessun insert.'); process.exit(0); }
 // 5. insert idempotente in competitor_snapshots reale (batch mode 6543: solo autocommit insert)
 const client = makeClient(g);
 await client.connect();
-if (fresh) { await client.query('truncate public.competitor_snapshots restart identity'); console.log('--fresh: tabella svuotata.'); }
 let inserted = 0;
-for (const d of valid) inserted += await insertSnapshot(client, d);
-await client.end();
+try {
+  // --fresh: TRUNCATE + ripopolamento in un'unica transazione. Senza, un crash tra il
+  // truncate e la fine degli insert lascerebbe la tabella vuota/parziale (finestra di RAG cieco).
+  if (fresh) { await client.query('begin'); await client.query('truncate public.competitor_snapshots restart identity'); console.log('--fresh: tabella svuotata (in transazione).'); }
+  for (const d of valid) inserted += await insertSnapshot(client, d);
+  if (fresh) await client.query('commit');
+} catch (e) {
+  if (fresh) await client.query('rollback').catch(() => {});
+  throw e;
+} finally {
+  await client.end();
+}
 
 console.log(`\n✅ Ingest: ${inserted} nuovi, ${valid.length - inserted} già presenti (dedup), ${docs.length - valid.length} scartati, ${urls.length - docs.length} scrape falliti.`);

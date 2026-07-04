@@ -4,7 +4,8 @@ name: Keep-alive Supabase + health check sito
 
 on:
   schedule:
-    - cron: '17 6 * * 1' # lunedì ~08:17 Rome (UTC, evita il minuto :00 per i ritardi GHA)
+    - cron: '17 6 * * 1,4' # lunedì e giovedì ~08:17 Rome (UTC, evita il minuto :00 per i ritardi GHA).
+    # 2×/settimana: margine contro la pausa Supabase a 7gg di inattività anche se un run salta.
   workflow_dispatch: {}
 
 permissions:

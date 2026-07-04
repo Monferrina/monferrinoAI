@@ -59,12 +59,17 @@ const urls = URLS.slice(0, argLimit);
 console.log(`Ingest ${urls.length} pagine di vetreriamonferrina.com in site_pages (dry-run: ${dryRun})`);
 
 // 1-2. scrape → record (gli scrape falliti si scartano)
-const docs = [];
+let docs = [];
 for (const url of urls) {
   const doc = scrape(url);
   if (doc) docs.push(toSnapshot({ ...doc, metadata: { ...doc.metadata, sourceURL: doc.metadata?.sourceURL || url } }, pageType(url)));
 }
 console.log(`scrape ok: ${docs.length}/${urls.length}`);
+// Scarta le pagine 4xx/5xx PRIMA di embed: il loro markdown d'errore inquinerebbe il RAG
+// (e falserebbe la soglia sotto: una valanga di 404 = ingest vuoto → deve fallire).
+const before4xx = docs.length;
+docs = docs.filter((d) => d.status_code < 400);
+if (docs.length < before4xx) console.warn(`  scartate ${before4xx - docs.length} pagine con status_code >= 400.`);
 // Soglia minima: sotto l'80% di scrape riusciti il run fallisce (exit 1). Senza,
 // bastava 1/29 pagina per un run "verde" che maschera un ingest quasi vuoto.
 const MIN_OK_RATIO = 0.8;
