@@ -1,0 +1,40 @@
+# Digest mensile MonferrinoSEO → email via Resend.
+# Legge Supabase (posizionamento/competitor/backlog) e invia il report ai destinatari.
+# Gira il 2 del mese, DOPO l'ingest del 1° (0 9 1) e il backup del 2 (0 4 2): dati freschi.
+# Gira solo sul default branch (vincolo GitHub schedule).
+name: Digest mensile
+
+on:
+  schedule:
+    - cron: '0 8 2 * *' # il 2 del mese, 08:00 UTC (dopo ingest del 1° e backup del 2)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Costruisce l’HTML e lo stampa, nessun invio'
+        type: boolean
+        default: false
+
+# Least privilege: solo checkout + npm + script; accessi esterni via secrets.
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run digest -- ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DIGEST_TO: ${{ secrets.DIGEST_TO }}
+          DIGEST_FROM: ${{ secrets.DIGEST_FROM }} # opzionale; default nel codice (dominio verificato)
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+          SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REGION: ${{ secrets.SUPABASE_PROJECT_REGION }}
