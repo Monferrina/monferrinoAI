@@ -14,6 +14,9 @@ import { execFileSync } from 'node:child_process';
 import { toSnapshot, validateSnapshot, pageType } from '../src/snapshot.mjs';
 import { makeClient, loadEnv, insertSnapshot } from '../src/db.mjs';
 import { scrape, embed } from '../src/fetchers.mjs';
+import { logAiRun } from '../src/ai-log.mjs';
+
+const startedAt = new Date();
 
 // Monitor "Competitor vetrerie" — source of truth della lista URL (vedi monitor/README.md)
 const MONITOR_ID = '019f1363-7672-736b-af55-3e04baad06fd';
@@ -81,4 +84,13 @@ try {
   await client.end();
 }
 
-console.log(`\n✅ Ingest: ${inserted} nuovi, ${valid.length - inserted} già presenti (dedup), ${docs.length - valid.length} scartati, ${urls.length - docs.length} scrape falliti.`);
+const summary = `${inserted} nuovi, ${valid.length - inserted} già presenti (dedup), ${docs.length - valid.length} scartati, ${urls.length - docs.length} scrape falliti.`;
+console.log(`\n✅ Ingest: ${summary}`);
+
+// Registro attività AI (AI Act): traccia l'esito del run.
+await logAiRun(g, {
+  job: 'ingest-competitors',
+  summary,
+  meta: { urls: urls.length, inserted, valid: valid.length, dropped_4xx: before4xx - docs.length },
+  startedAt,
+});
