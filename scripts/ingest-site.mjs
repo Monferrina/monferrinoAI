@@ -13,6 +13,9 @@
 import { toSnapshot, validateSnapshot, pageType } from '../src/snapshot.mjs';
 import { makeClient, loadEnv, insertSnapshot } from '../src/db.mjs';
 import { scrape, embed } from '../src/fetchers.mjs';
+import { logAiRun } from '../src/ai-log.mjs';
+
+const startedAt = new Date();
 
 // Source of truth = mappa del sito (firecrawl map vetreriamonferrina.com) filtrata alle pagine
 // di contenuto. Esclusi: cookie/privacy (legali), preventivo (form), galleria (immagini),
@@ -100,4 +103,13 @@ let inserted = 0;
 for (const d of valid) inserted += await insertSnapshot(client, d, 'site_pages');
 await client.end();
 
-console.log(`\n✅ Ingest sito: ${inserted} nuovi, ${valid.length - inserted} già presenti (dedup), ${docs.length - valid.length} scartati, ${urls.length - docs.length} scrape falliti.`);
+const summary = `${inserted} nuovi, ${valid.length - inserted} già presenti (dedup), ${docs.length - valid.length} scartati, ${urls.length - docs.length} scrape falliti.`;
+console.log(`\n✅ Ingest sito: ${summary}`);
+
+// Registro attività AI (AI Act): traccia l'esito del run.
+await logAiRun(g, {
+  job: 'ingest-site',
+  summary,
+  meta: { urls: urls.length, inserted, valid: valid.length, dropped_4xx: before4xx - docs.length },
+  startedAt,
+});
