@@ -14,6 +14,10 @@ on:
         description: 'Solo scrape+validate, nessun insert (test a costo crediti minimo)'
         type: boolean
         default: false
+      fresh:
+        description: 'TRUNCATE + ripopola pulito in transazione (bonifica retroattiva PII). ~30 crediti Firecrawl.'
+        type: boolean
+        default: false
       limit:
         description: 'Limita a N pagine (vuoto = tutte le 30)'
         type: string
@@ -36,7 +40,7 @@ jobs:
           node-version: '22'
       - run: npm ci
       - run: npm install -g firecrawl-cli # il job usa la CLI; si autentica via FIRECRAWL_API_KEY
-      - run: npm run ingest -- ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+      - run: npm run ingest -- ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.fresh && '--fresh' || '' }} ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
