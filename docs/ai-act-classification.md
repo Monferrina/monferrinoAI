@@ -87,8 +87,8 @@ sull'uso a valle.
 **Registro del trattamento (ROPA-lite):**
 - *Finalità:* competitive intelligence SEO/AEO, uso interno.
 - *Categorie di dati:* contenuti pubblici di pagine web; PII residua minimizzata via redazione.
-- *Conservazione:* snapshot in `competitor_snapshots` (dedup idempotente per hash). ⚠️ *Azione aperta:
-  definire una policy di retention esplicita.*
+- *Conservazione:* snapshot in `competitor_snapshots`, **retention max 90 giorni** (limitazione della
+  conservazione, art. 5(1)(e)); enforcement via `DELETE` nel job keepalive (2×/settimana). ✓
 - *Storage:* Supabase, region **`eu-west-3`** (Parigi) → dati residenti in UE. ✓
 - *Condivisione:* nessuna con terzi.
 
@@ -119,7 +119,7 @@ sull'uso a valle.
 
 | # | Azione | Priorità |
 |---|---|---|
-| 1 | Policy di retention esplicita per `competitor_snapshots` | media — aperta |
+| 1 | ~~Policy di retention per `competitor_snapshots`~~ → risolta: 90 giorni via keepalive | ✓ chiusa 2026-07-05 |
 | 2 | ~~Verificare region EU dello storage Supabase~~ → risolta: `eu-west-3` (Parigi, UE) | ✓ chiusa 2026-07-05 |
 | 3 | Re-ingest `--fresh` per bonificare gli snapshot salvati prima della redazione | alta (post-merge) |
 | 4 | Rivalutare art. 50 GDPR se Glassy passa a LLM o raccoglie lead | trigger |
