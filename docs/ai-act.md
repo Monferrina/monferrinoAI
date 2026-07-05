@@ -99,6 +99,26 @@ fa mai fallire il job tracciato. RLS abilitata + forzata + `revoke` su anon/auth
   codice o in chat. TLS in transito verso il DB in modalità **verify-full** (CA
   Supabase pinnata).
 
+### 6.1 Posture di conformità della pipeline Firecrawl
+
+- **GDPR — minimizzazione PII.** Il markdown scrapato è redatto (`redact()` in
+  `src/fetchers.mjs`) **prima** di embedding, storage e hash di dedup: la redazione
+  avviene una sola volta in `toSnapshot` (`src/snapshot.mjs`), unico punto in cui si
+  costruisce `content_md`, e copre così sia competitor sia sito. Maschera email e
+  telefoni italiani via regex (`[email]` / `[tel]`). Lo scrape usa
+  `--only-main-content`, che già scarta nav/footer (dove si annidano recapiti).
+  *Ceiling:* i nomi propri **non** sono coperti (servirebbe un NER) — accettabile per
+  pagine competitor B2B di edilizia; si valuterà un NER solo se un audit lo richiede.
+- **TDM / Copyright (art. 4 Dir. UE 2019/790).** Firecrawl cloud rispetta il
+  `robots.txt` di default (non disabilitato). La lista URL è **curata** dal monitor
+  (pagine pubbliche, nessun crawl largo): nessun bypass di login, paywall o CAPTCHA,
+  nessun aggiramento di barriere tecniche o opt-out. I dati servono ad analisi di
+  **keyword-gap** (uso lecito), non a replicare o ripubblicare i contenuti altrui.
+  *Nota:* la CLI Firecrawl non espone un flag di User-Agent personalizzato, quindi
+  non è impostato; il rispetto del robots resta garantito lato servizio.
+- **AI Act — rischio minimo.** Uso interno esclusivo (audit SEO), output sempre
+  mediati da revisione umana: nessun impatto sui diritti degli interessati.
+
 ## 7. Gestione del rischio e mitigazioni
 
 | Rischio | Mitigazione |
