@@ -12,6 +12,7 @@
 
 import { pathToFileURL } from 'node:url';
 import { makeClient, loadEnv } from '../src/db.mjs';
+import { logAiRun } from '../src/ai-log.mjs';
 
 // --- Raccolta dati (tutte query di sola lettura) ---
 async function collect(client) {
@@ -138,6 +139,7 @@ async function send({ from, to, subject, html }, apiKey) {
 
 // --- Main (solo se eseguito direttamente, non all'import dai test) ---
 async function main() {
+  const startedAt = new Date();
   const dryRun = process.argv.includes('--dry-run');
   const g = loadEnv('.env.local');
 
@@ -174,6 +176,14 @@ async function main() {
 
   const res = await send({ from, to, subject, html }, apiKey);
   console.log(`Digest inviato a ${to.join(', ')} — id ${res.id}`);
+
+  // Registro attività AI (AI Act): traccia l'invio.
+  await logAiRun(g, {
+    job: 'digest',
+    summary: `inviato a ${to.length} destinatari`,
+    meta: { rankings: data.rankings.length, competitors: data.competitors.length, resend_id: res.id },
+    startedAt,
+  });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) await main();
