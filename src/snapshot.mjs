@@ -4,6 +4,11 @@
 
 import crypto from 'node:crypto';
 import { URL } from 'node:url';
+// redact() vive in fetchers.mjs (sede dei fetcher esterni); qui è l'UNICO punto in cui si
+// costruisce content_md, quindi redigere qui pulisce in un colpo solo embedding + storage + hash
+// di dedup, per competitor e sito (entrambi passano da toSnapshot). Nessun ciclo: fetchers non
+// importa snapshot. redact è pura regex, non intacca la testabilità di questo modulo.
+import { redact } from './fetchers.mjs';
 
 export const EMBED_DIM = 1024; // voyage-4
 // Cap sul markdown prima di embed+hash: evita payload Voyage sovradimensionati.
@@ -29,7 +34,8 @@ export function toSnapshot(doc, page_type) {
   const m = doc.metadata ?? {};
   const ct = doc.changeTracking;
   const url = m.sourceURL || m.url;
-  const content_md = (doc.markdown || '').slice(0, MAX_CONTENT_CHARS);
+  // redact PRIMA di slice+hash: PII fuori da embedding, testo salvato e hash di dedup in un colpo solo.
+  const content_md = redact(doc.markdown || '').slice(0, MAX_CONTENT_CHARS);
   return {
     domain: new URL(url).hostname.replace(/^www\./, ''),
     url,
