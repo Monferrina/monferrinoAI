@@ -56,3 +56,19 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           PREFIX: ${{ steps.p.outputs.prefix }}
         run: bash scripts/backup-db.sh "$PREFIX"
+      - name: Alert email su fallimento (Resend)
+        if: failure()
+        run: |
+          jq -n --arg to "$ALERT_TO" \
+            --arg subject "[monferrinoAI] FALLITO: $WORKFLOW" \
+            --arg text "Run fallito: $RUN_URL" \
+            '{from: "MonferrinoSEO <agente@vetreriamonferrina.com>", to: ($to | split(",")), subject: $subject, text: $text}' \
+          | curl -sf https://api.resend.com/emails \
+              -H "Authorization: Bearer $RESEND_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d @-
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_TO: ${{ secrets.DIGEST_TO }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
