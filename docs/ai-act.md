@@ -137,7 +137,7 @@ fa mai fallire il job tracciato. RLS abilitata + forzata + `revoke` su anon/auth
 | Documentazione tecnica del sistema | ✅ questo documento |
 | Registro attività AI (log su Supabase) | ✅ `ai_run_log` attivo |
 | Sorveglianza umana su output | ✅ human gate su ogni PR |
-| Trasparenza contenuti AI (art. 50) | ⏳ da formalizzare (disclosure) |
+| Trasparenza contenuti AI (art. 50) | ✅ disclosure chatbot ("Assistente virtuale automatizzato") sul sito |
 | Classificazione definitiva del rischio | ⏳ **valutazione legale** |
 | DPIA + FRIA | ⏳ **supporto legale** (entro 2026-08-02) |
 
