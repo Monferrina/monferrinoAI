@@ -96,3 +96,33 @@ new ApiCheck('seo-sitemap', {
     ],
   },
 });
+
+// DB Supabase vivo (lezione del down 13/7/2026: il keepalive GitHub Actions rileva
+// ma nessuno guardava la tab Actions). Canale di detection INDIPENDENTE da GitHub:
+// chiama la RPC public.ping() (migration ping_keepalive_rpc — ritorna solo now(),
+// zero dati esposti, eseguita ad ogni run → conta anche come attività anti-pausa).
+// 6h invece di 24h: rilevare un down entro ore, non giorni. ~120 run/mese, trascurabile.
+// La chiave è la publishable (pubblica by design), via env var Checkly.
+new ApiCheck('db-supabase-alive', {
+  name: 'DB Supabase alive (rpc/ping)',
+  group: agentGroup,
+  alertChannels: [emailChannel],
+  activated: true,
+  frequency: Frequency.EVERY_6H,
+  degradedResponseTime: 5000,
+  maxResponseTime: 15000,
+  tags: ['monferrino', 'infra'],
+  request: {
+    url: 'https://xvsohyyymzadkcerrqca.supabase.co/rest/v1/rpc/ping',
+    method: 'POST',
+    followRedirects: false,
+    skipSSL: false,
+    headers: [
+      { key: 'apikey', value: '{{SUPABASE_PUBLISHABLE_KEY}}' },
+      { key: 'Content-Type', value: 'application/json' },
+    ],
+    body: '{}',
+    bodyType: 'JSON',
+    assertions: [AssertionBuilder.statusCode().equals(200)],
+  },
+});
