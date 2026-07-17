@@ -52,6 +52,41 @@ export function toSnapshot(doc, page_type) {
   };
 }
 
+// Guardrail anti-codice/injection sul markdown scrapato (input di terzi NON fidato).
+// Ritorna l'elenco delle minacce (array vuoto = contenuto pulito). Stessa logica di scarto
+// di validateSnapshot/4xx: quello che matcha NON entra nel RAG. Va eseguito PRIMA dell'embed.
+// Le pagine competitor sono marketing/servizi di vetrerie: codice, <script> o frasi tipo
+// "ignora le istruzioni" sono anomali per definizione → scarto sicuro.
+// ponytail: euristiche a regex/densità, non un parser. Sufficiente per il profilo (contenuto
+// edilizia B2B); rivedere le soglie solo se un corpus legittimamente tecnico va indicizzato.
+
+// Frasi di prompt-injection (IT/EN). Pattern stretti: intento esplicito di scavalcare le istruzioni.
+const INJECTION_RES = [
+  /ignor(?:e|a|are)\s+(?:all\s+|the\s+|any\s+|tutte\s+|le\s+|ogni\s+)?(?:previous|prior|above|preceding|precedent\w*)?\s*(?:instructions?|prompts?|istruzion\w+)/i,
+  /disregard\s+.{0,30}?(?:instructions?|prompt|rules?)/i,
+  /forget\s+(?:all\s+|everything\s+|your\s+)?(?:previous|prior|above)?\s*(?:instructions?|rules?|prompt)/i,
+  /(?:new|updated|revised|nuove?)\s+(?:instructions?|istruzion\w+)\s*[:-]/i,
+  /(?:system|developer)\s+(?:prompt|message|instructions?)/i,
+  /(?:sei|agisci come|comportati come)\s+(?:ora\s+)?(?:un|una|il|la)\b.{0,40}?(?:assistente|modello|ai|dan)\b/i,
+];
+// Markup attivo: script, URI javascript:, handler inline. onlyMainContent ne toglie molto,
+// ma un'iniezione nel corpo principale passerebbe.
+const ACTIVE_MARKUP_RE = /<script\b|javascript:|\son(?:error|load|click|mouseover)\s*=/i;
+// Blocchi di codice fenced ```…```; ne misuro la copertura sul contenuto.
+const CODE_FENCE_RE = /```[\s\S]*?```/g;
+// Sopra questa quota di contenuto dentro blocchi di codice = pagina "di codice", non testo.
+const CODE_DENSITY_MAX = 0.3;
+
+export function scanContent(md) {
+  const s = String(md ?? '');
+  const threats = [];
+  if (INJECTION_RES.some((re) => re.test(s))) threats.push('prompt-injection sospetta');
+  if (ACTIVE_MARKUP_RE.test(s)) threats.push('markup attivo (script/js)');
+  const fenced = (s.match(CODE_FENCE_RE) || []).reduce((n, b) => n + b.length, 0);
+  if (s.length > 0 && fenced / s.length > CODE_DENSITY_MAX) threats.push('densità di codice anomala');
+  return threats;
+}
+
 // Ritorna l'elenco degli errori (array vuoto = record valido, pronto per l'insert).
 // Un record con errori va scartato/segnalato, MAI inserito.
 export function validateSnapshot(r) {
