@@ -10,7 +10,7 @@
 // Costo: ~1 credito Firecrawl/pagina. Voyage gratis (free tier per-modello).
 // NB: nessun --fresh volutamente — non si svuota la KB del proprio sito per errore.
 
-import { toSnapshot, validateSnapshot, pageType } from '../src/snapshot.mjs';
+import { toSnapshot, validateSnapshot, scanContent, pageType } from '../src/snapshot.mjs';
 import { makeClient, loadEnv, insertSnapshot } from '../src/db.mjs';
 import { scrape, embed } from '../src/fetchers.mjs';
 import { logAiRun } from '../src/ai-log.mjs';
@@ -73,6 +73,15 @@ console.log(`scrape ok: ${docs.length}/${urls.length}`);
 const before4xx = docs.length;
 docs = docs.filter((d) => d.status_code < 400);
 if (docs.length < before4xx) console.warn(`  scartate ${before4xx - docs.length} pagine con status_code >= 400.`);
+// Guardrail anti-codice/injection: scarta PRIMA di embed il markdown con <script>, codice denso
+// o prompt-injection, così non entra nel RAG come contenuto legittimo (stessa logica dei 4xx).
+const beforeScan = docs.length;
+docs = docs.filter((d) => {
+  const threats = scanContent(d.content_md);
+  if (threats.length) console.warn(`  SCARTATO ${d.url}: ${threats.join(', ')}`);
+  return threats.length === 0;
+});
+if (docs.length < beforeScan) console.warn(`  scartate ${beforeScan - docs.length} pagine con codice/injection.`);
 // Soglia minima: sotto l'80% di scrape riusciti il run fallisce (exit 1). Senza,
 // bastava 1/29 pagina per un run "verde" che maschera un ingest quasi vuoto.
 const MIN_OK_RATIO = 0.8;
@@ -110,6 +119,6 @@ console.log(`\n✅ Ingest sito: ${summary}`);
 await logAiRun(g, {
   job: 'ingest-site',
   summary,
-  meta: { urls: urls.length, inserted, valid: valid.length, dropped_4xx: before4xx - docs.length },
+  meta: { urls: urls.length, inserted, valid: valid.length, dropped_4xx: before4xx - beforeScan, dropped_code: beforeScan - docs.length },
   startedAt,
 });
