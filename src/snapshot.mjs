@@ -62,7 +62,10 @@ export function toSnapshot(doc, page_type) {
 
 // Frasi di prompt-injection (IT/EN). Pattern stretti: intento esplicito di scavalcare le istruzioni.
 const INJECTION_RES = [
-  /ignor(?:e|a|are)\s+(?:all\s+|the\s+|any\s+|tutte\s+|le\s+|ogni\s+)?(?:previous|prior|above|preceding|precedent\w*)?\s*(?:instructions?|prompts?|istruzion\w+)/i,
+  // I determinanti si accumulano ("tutte le istruzioni"), quindi il gruppo va ripetuto:
+  // con un solo `?` opzionale "tutte " lo consumava e "le istruzioni" non veniva piu' raggiunto.
+  // {0,3} tiene il quantificatore limitato → nessun ReDoS.
+  /(?:ignor(?:e|a|are)|dimentica)\s+(?:(?:all|the|any|tutt[ei]|l[ea]|ogni)\s+){0,3}(?:previous|prior|above|preceding|precedent\w*)?\s*(?:instructions?|prompts?|istruzion\w+)/i,
   /disregard\s+.{0,30}?(?:instructions?|prompt|rules?)/i,
   /forget\s+(?:all\s+|everything\s+|your\s+)?(?:previous|prior|above)?\s*(?:instructions?|rules?|prompt)/i,
   /(?:new|updated|revised|nuove?)\s+(?:instructions?|istruzion\w+)\s*[:-]/i,
