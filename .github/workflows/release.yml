@@ -38,7 +38,7 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.event.release.tag_name }}
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -70,13 +70,13 @@ jobs:
 
       # Provenance SLSA sul tarball: da quale commit, quale workflow, quale runner.
       - name: Attestazione di provenance
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-path: monferrino-${{ env.TAG }}.tar.gz
 
       # Lega la SBOM al tarball che descrive.
       - name: Attestazione SBOM
-        uses: actions/attest-sbom@51e74621a501c89df81fc1391c5a8f4cfc9fab2f # v3
+        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3
         with:
           subject-path: monferrino-${{ env.TAG }}.tar.gz
           sbom-path: monferrino-${{ env.TAG }}-sbom.cdx.json
