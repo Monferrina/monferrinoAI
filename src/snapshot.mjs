@@ -42,8 +42,10 @@ export function toSnapshot(doc, page_type) {
     page_type,
     status_code: m.statusCode ?? null,
     language: m.language ?? null,
-    title: m.title ?? null,
-    description: m.description ?? null,
+    // Redatti come il body: un recapito nella <meta description> non deve restare in
+    // chiaro mentre lo stesso numero nel testo diventa [tel]. redact(null) ritorna null.
+    title: redact(m.title ?? null),
+    description: redact(m.description ?? null),
     page_modified_at: m['article:modified_time'] || m.modifiedTime || null,
     change_status: ct?.changeStatus ?? null,
     previous_scrape_at: ct?.previousScrapeAt ?? null,

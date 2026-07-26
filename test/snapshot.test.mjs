@@ -56,6 +56,23 @@ test('toSnapshot usa metadata.url come fallback e gestisce campi opzionali assen
   assert.equal(r.change_status, null); // no changeTracking
 });
 
+test('toSnapshot redige la PII anche in title e description, non solo nel body', () => {
+  const r = toSnapshot(
+    {
+      markdown: 'Chiama 0142 563728.',
+      metadata: {
+        url: 'https://x.it/',
+        title: 'Vetreria — tel 0142 563728',
+        description: 'Scrivici: info@esempio.it',
+      },
+    },
+    'home'
+  );
+  assert.ok(!r.title.includes('0142'), `telefono in chiaro nel title: ${r.title}`);
+  assert.ok(!r.description.includes('@esempio.it'), `email in chiaro nella description: ${r.description}`);
+  assert.ok(!r.content_md.includes('0142'));
+});
+
 // --- validateSnapshot: record valido di riferimento + fault injection ---
 
 function validRecord(over = {}) {
