@@ -23,8 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: '22'
       - run: npm ci
@@ -38,3 +38,21 @@ jobs:
           SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_REGION: ${{ secrets.SUPABASE_PROJECT_REGION }}
+      # Il digest gira una volta al mese e il suo unico output osservabile è l'email:
+      # senza alert, "fallito" e "non ancora arrivato" sono indistinguibili dall'esterno.
+      - name: Alert email su fallimento (Resend)
+        if: failure()
+        run: |
+          jq -n --arg to "$ALERT_TO" \
+            --arg subject "[monferrinoAI] FALLITO: $WORKFLOW" \
+            --arg text "Run fallito: $RUN_URL" \
+            '{from: "MonferrinoSEO <agente@vetreriamonferrina.com>", to: ($to | split(",")), subject: $subject, text: $text}' \
+          | curl -sf https://api.resend.com/emails \
+              -H "Authorization: Bearer $RESEND_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d @-
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_TO: ${{ secrets.DIGEST_TO }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

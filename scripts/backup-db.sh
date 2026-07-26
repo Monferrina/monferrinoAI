@@ -11,6 +11,13 @@
 # Retention: gestita dalle lifecycle rule di R2 (per prefisso), non qui.
 set -euo pipefail
 
+# Stessa postura TLS di src/db.mjs (verify-full con CA pinnata), sullo stesso host pooler.
+# Senza, libpq usa 'prefer': cifra ma NON autentica il server e ripiega in chiaro se il peer
+# rifiuta TLS — proprio sul canale che porta via l'intero schema public in una volta sola.
+PGSSLROOTCERT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../certs" && pwd)/supabase-prod-ca-2021.crt"
+export PGSSLMODE=verify-full
+export PGSSLROOTCERT
+
 PREFIX="${1:-manual}"
 REF="$(printf '%s' "$SUPABASE_DB_HOST" | cut -d. -f2)"          # db.<ref>.supabase.co → <ref>
 HOST="aws-0-${SUPABASE_PROJECT_REGION}.pooler.supabase.com"
