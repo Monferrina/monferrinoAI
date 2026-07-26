@@ -125,8 +125,28 @@ npm run checkly:test  # valida i monitor Checkly
 
 ## Sicurezza
 
-Policy di segnalazione vulnerabilità in [`SECURITY.md`](./SECURITY.md). Segreti solo in GitHub Secrets / `.env.local`; token dei workflow in sola lettura (least privilege); `main` protetto (solo PR squash, check CodeQL obbligatorio).
+Policy di segnalazione vulnerabilità in [`SECURITY.md`](./SECURITY.md). Segreti solo in GitHub Secrets / `.env.local`; token dei workflow in sola lettura (least privilege); `main` protetto (solo PR squash, check CodeQL obbligatorio). Le GitHub Actions sono pinnate per SHA e non per tag — i tag sono mobili, ed è il vettore usato nell'attacco a `tj-actions/changed-files`. Un `npm audit --audit-level=high` bloccante in CI formalizza "niente vulnerabilità note al rilascio".
+
+## Verificare una release
+
+Ogni release pubblicata porta un tarball dei sorgenti e una SBOM CycloneDX, firmati con Sigstore keyless via OIDC di GitHub Actions: nessuna chiave da custodire né da ruotare. Un artefatto firmato che nessuno sa verificare è teatro, quindi ecco come si verifica.
+
+```bash
+TAG=v0.1.0
+gh release download "$TAG" --repo Monferrina/monferrinoAI
+
+# Provenance: da quale commit, quale workflow, quale runner
+gh attestation verify "monferrino-$TAG.tar.gz" --repo Monferrina/monferrinoAI
+
+# SBOM: l'elenco dei componenti, legato a quel tarball
+gh attestation verify "monferrino-$TAG.tar.gz" \
+  --repo Monferrina/monferrinoAI --predicate-type https://cyclonedx.org/bom
+```
+
+La SBOM elenca le sole dipendenze **runtime** (`--omit dev`): è ciò che serve per rispondere in 24 ore alla domanda «questa CVE ci tocca?», che è il motivo per cui il CRA la richiede.
 
 ## Licenza
 
-All Rights Reserved © Vetreria Monferrina di Fioravanti Giuseppe — Casale Monferrato (AL).
+**All Rights Reserved** © Vetreria Monferrina di Fioravanti Giuseppe — Casale Monferrato (AL).
+
+Il codice è pubblico a scopo dimostrativo. Non esiste alcun file `LICENSE` e **non è concessa alcuna licenza d'uso**: nessun permesso di riuso, redistribuzione od opere derivate. Un repository pubblico senza licenza è legalmente già così — scriverlo serve a non lasciare in giro l'ambiguità con le aspettative open source.

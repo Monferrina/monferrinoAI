@@ -1,0 +1,90 @@
+# Release: tarball dei sorgenti + SBOM + attestazioni, allegati alla release.
+#
+# Perché esiste (azioni A1/A2 dell'audit CRA del 24-07-2026): monferrinoAI oggi è
+# FUORI dallo scope del CRA — non è immesso sul mercato, non ha licenza d'uso, il
+# modello operativo è un servizio. Questo workflow è quindi igiene volontaria, non
+# un obbligo: serve a poter rispondere in 24h alla domanda "questa CVE ci tocca?",
+# che è il motivo vero per cui l'Annex I chiede la SBOM.
+#
+# Le attestazioni usano Sigstore keyless via OIDC di GitHub Actions: nessuna chiave
+# da custodire né da ruotare. La guida alla verifica sta nel README — un artefatto
+# firmato che nessuno sa verificare è teatro.
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag della release a cui allegare tarball, SBOM e attestazioni'
+        required: true
+
+permissions:
+  contents: write # upload degli asset sulla release
+  id-token: write # OIDC → firma keyless Sigstore
+  attestations: write # scrittura delle attestazioni
+
+jobs:
+  release:
+    name: Tarball + SBOM + attestazioni
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TAG: ${{ inputs.tag || github.event.release.tag_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      # L'artefatto rilasciato: non c'è nulla da compilare, il "prodotto" sono i
+      # sorgenti che GitHub Actions esegue. git archive li fissa in modo riproducibile.
+      - name: Tarball dei sorgenti
+        run: |
+          git archive --format=tar.gz --prefix="monferrino-${TAG}/" \
+            -o "monferrino-${TAG}.tar.gz" "$TAG"
+          ls -l "monferrino-${TAG}.tar.gz"
+
+      # --omit=dev: la SBOM descrive ciò che gira in produzione (oggi: solo pg).
+      - name: Install (solo runtime)
+        run: npm ci --omit=dev
+
+      - name: Genera SBOM CycloneDX
+        run: |
+          npx --yes @cyclonedx/cyclonedx-npm@6.0.0 \
+            --omit dev --output-format JSON --output-file sbom.cdx.json
+          # Una SBOM vuota o malformata è peggio di nessuna SBOM: fa credere di sapere.
+          node -e '
+            const s = require("./sbom.cdx.json");
+            const n = (s.components || []).length;
+            if (!s.bomFormat || n === 0) throw new Error("SBOM vuota o malformata");
+            console.log("SBOM valida:", n, "componenti");
+          '
+          mv sbom.cdx.json "monferrino-${TAG}-sbom.cdx.json"
+
+      # Provenance SLSA sul tarball: da quale commit, quale workflow, quale runner.
+      - name: Attestazione di provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: monferrino-${{ env.TAG }}.tar.gz
+
+      # Lega la SBOM al tarball che descrive.
+      - name: Attestazione SBOM
+        uses: actions/attest-sbom@51e74621a501c89df81fc1391c5a8f4cfc9fab2f # v3
+        with:
+          subject-path: monferrino-${{ env.TAG }}.tar.gz
+          sbom-path: monferrino-${{ env.TAG }}-sbom.cdx.json
+
+      # gh CLI invece di un'action di terze parti: già sul runner, un pin in meno.
+      - name: Allega gli asset alla release
+        run: |
+          gh release upload "$TAG" \
+            "monferrino-${TAG}.tar.gz" \
+            "monferrino-${TAG}-sbom.cdx.json" \
+            --clobber
