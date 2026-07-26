@@ -32,6 +32,10 @@ jobs:
       - name: Health check sito (home + sitemap + campione pagine)
         run: node scripts/healthcheck.mjs
       - name: Heartbeat (attività su branch dedicato → repo pubblico non disattivato dopo 60gg)
+        # Indipendente dall'esito dell'health check: è la rete di sicurezza anti-disattivazione,
+        # e non deve morire perché il sito (o la rete del runner) ha un problema passeggero.
+        # !cancelled() e non always(): a job cancellato il push -f non deve partire.
+        if: '!cancelled()'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
