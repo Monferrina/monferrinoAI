@@ -13,6 +13,7 @@
 import { pathToFileURL } from 'node:url';
 import { makeClient, loadEnv } from '../src/db.mjs';
 import { logAiRun } from '../src/ai-log.mjs';
+import { sendEmail, esc } from '../src/mailer.mjs';
 
 // --- Raccolta dati (tutte query di sola lettura) ---
 async function collect(client) {
@@ -48,7 +49,6 @@ async function collect(client) {
 // --- Costruzione HTML (funzione pura: input dati → stringa, testabile) ---
 export function buildDigestHtml({ rankings, competitors, backlog }, monthLabel) {
   const BRAND = '#b56c33';
-  const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   const sections = [];
 
   // 1. Posizionamento sito
@@ -126,17 +126,6 @@ ${body}
 </body></html>`;
 }
 
-// --- Invio via Resend ---
-async function send({ from, to, subject, html }, apiKey) {
-  const r = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to, subject, html }),
-  });
-  if (!r.ok) throw new Error(`Resend ${r.status}: ${(await r.text().catch(() => '')).slice(0, 500)}`);
-  return r.json();
-}
-
 // --- Main (solo se eseguito direttamente, non all'import dai test) ---
 async function main() {
   const startedAt = new Date();
@@ -174,7 +163,7 @@ async function main() {
   if (!apiKey) throw new Error('RESEND_API_KEY mancante.');
   if (!to.length) throw new Error('DIGEST_TO mancante (csv di destinatari).');
 
-  const res = await send({ from, to, subject, html }, apiKey);
+  const res = await sendEmail({ from, to, subject, html }, apiKey);
   console.log(`Digest inviato a ${to.join(', ')} — id ${res.id}`);
 
   // Registro attività AI (AI Act): traccia l'invio.
