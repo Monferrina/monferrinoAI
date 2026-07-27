@@ -52,6 +52,21 @@ jobs:
           SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_REGION: ${{ secrets.SUPABASE_PROJECT_REGION }}
+      # I chunk si derivano da site_pages, quindi vanno rifatti subito dopo: una pagina
+      # aggiornata con i chunk della versione precedente farebbe dire al RAG che una sezione
+      # c'è ancora quando non c'è più. Nessuno scrape qui, solo lettura dal DB e embedding:
+      # salta da sé le pagine il cui content_hash è già stato chunkato.
+      - name: Ricostruisci i chunk delle pagine cambiate
+        if: ${{ !inputs.dry_run }}
+        run: npm run chunk
+        env:
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+          SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REGION: ${{ secrets.SUPABASE_PROJECT_REGION }}
+
       - name: Alert email su fallimento (Resend)
         if: failure()
         run: |

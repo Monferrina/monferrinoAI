@@ -101,6 +101,29 @@ test('buildBriefing: distanza arrotondata a 4 decimali, non-numerica → null', 
   assert.equal(b.gia_esistente[1].distanza, null);
 });
 
+test('buildBriefing: le sezioni della pagina restano in ordine di lettura', () => {
+  // Ordinate per chunk_index e non per distanza: serve vedere com'è fatta la pagina.
+  // Riordinarle per distanza darebbe una classifica su uno scarto che è spesso 0,02.
+  const b = buildBriefing(KW, [], [
+    { heading: null, distanza: 0.4 },
+    { heading: 'Caratteristiche', distanza: 0.31 },
+    { heading: 'Domande frequenti', distanza: 0.36 },
+  ]);
+  assert.deepEqual(b.sezioni_pagina.map((s) => s.heading), [null, 'Caratteristiche', 'Domande frequenti']);
+  assert.equal(b.sezioni_pagina[1].distanza, 0.31);
+});
+
+test('buildBriefing: senza sezioni il campo esiste comunque, vuoto', () => {
+  // Una pagina non ancora chunkata non deve far sparire la chiave: chi legge il JSON
+  // distingue "nessuna sezione" da "campo assente perche' e' cambiato il formato".
+  assert.deepEqual(buildBriefing(KW).sezioni_pagina, []);
+});
+
+test('buildBriefingHtml: senza sezioni spiega il perché invece di mostrare il vuoto', () => {
+  const html = buildBriefingHtml(buildBriefing(KW, [], []));
+  assert.match(html, /non è ancora nel RAG/);
+});
+
 test('buildBriefingHtml: contiene il JSON completo da incollare', () => {
   // La tabella è comodità; il <pre> è il vero payload dell'email. Se sparisce, chi riceve
   // deve ricostruire il briefing a mano e il senso dell'automazione se ne va.
