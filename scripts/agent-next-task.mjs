@@ -174,6 +174,13 @@ ${riga('keyword', b.keyword)}${riga('cluster', b.cluster)}${riga('volume', b.vol
 ${vicine}
 <h2 style="font-size:17px;margin:24px 0 6px;color:${BRAND}">📄 Le sezioni di ${esc(b.target_page ?? 'la pagina target')}</h2>
 ${sezioni}
+<h2 style="font-size:17px;margin:24px 0 6px;color:${BRAND}">🛠️ Da qui in poi, a mano</h2>
+<ol style="font-size:14px;padding-left:20px;margin:0">
+<li>Apri Claude Code nel repo del sito.</li>
+<li>Incolla <code>prompts/genera-articolo.md</code> (repo monferrinoAI) e il JSON qui sotto.</li>
+<li>Prima della PR, nel repo del sito: <code>npm run lint</code>, <code>npx astro check</code>, <code>npx vitest run</code>.</li>
+</ol>
+<p style="color:#999;font-size:12px;margin:6px 0 0">Non usare <code>/blog-write</code>: i suoi default (2.000+ parole, statistiche, immagini stock, grafici) vanno contro le regole editoriali del sito. Il perché sta in testa a <code>genera-articolo.md</code>.</p>
 <h2 style="font-size:17px;margin:24px 0 6px;color:${BRAND}">📋 Briefing da incollare</h2>
 <pre style="background:#f6f6f6;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">${esc(JSON.stringify(b, null, 2))}</pre>
 <hr style="border:none;border-top:1px solid #eee;margin:28px 0 12px">
