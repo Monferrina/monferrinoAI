@@ -124,6 +124,16 @@ test('buildBriefingHtml: senza sezioni spiega il perché invece di mostrare il v
   assert.match(html, /non è ancora nel RAG/);
 });
 
+test('buildBriefingHtml: dice cosa fare, invece di contare sulla memoria di chi legge', () => {
+  // Il briefing arriva una volta a settimana: senza i passi scritti dentro, chi lo riceve
+  // deve ricordarsi da solo prompt e comandi di verifica. È l'unico punto in cui
+  // l'automazione consegna il lavoro a una persona, e non deve consegnarlo muto.
+  const html = buildBriefingHtml(buildBriefing(KW, [], []));
+  assert.match(html, /Apri Claude Code nel repo del sito/);
+  assert.match(html, /npx astro check/);
+  assert.match(html, /Non usare <code>\/blog-write<\/code>/);
+});
+
 test('buildBriefingHtml: contiene il JSON completo da incollare', () => {
   // La tabella è comodità; il <pre> è il vero payload dell'email. Se sparisce, chi riceve
   // deve ricostruire il briefing a mano e il senso dell'automazione se ne va.

@@ -110,6 +110,16 @@ Una avvertenza onesta sulle distanze delle sezioni: sono vicine fra loro, con un
 
 I chunk si derivano da `site_pages` senza ri-scrapare: il markdown è già nel database, quindi `chunk-site.mjs` non consuma un credito Firecrawl. Le 29 pagine danno 157 chunk, mediana 453 caratteri.
 
+### Perché la scrittura non usa una skill di blogging
+
+Le skill `claude-blog` e `claude-seo` vivono dentro Claude Code, quindi in CI non esistono: il workflow del lunedì fa una query SQL, un embedding e una POST a Resend, e non c'è niente che possa leggerle.
+
+Anche nella metà umana, però, `blog-write` è stata valutata e scartata. Porta con sé default pensati per blog di content marketing che vanno contro le regole editoriali del sito: 2.000-2.500 parole invece di 900-1.400, da 8 a 12 statistiche da fonti esterne dove le regole vietano i numeri non verificabili, immagini da Pixabay o Unsplash dove sono ammessi solo i file già presenti nel repo, grafici SVG, video YouTube incorporati dove gli iframe sono vietati, e output in MDX mentre gli articoli vivono in un array TypeScript.
+
+Resta utile a pezzo finito: `/blog-seo-check` valida title, meta description, gerarchia degli heading e testo alternativo delle immagini, e su quello non ha opinioni editoriali.
+
+Il briefing del lunedì porta i passi scritti dentro l'email, così l'unico punto in cui l'automazione consegna il lavoro a una persona non è muto.
+
 Nel briefing non entra una riga di testo scrapato. Del RAG escono solo URL e distanze, per scelta: il contenuto delle pagine è materiale di terzi, e ciò che non entra nel briefing non può entrare nel prompt. Le regole per chi scrive stanno in [`prompts/genera-articolo.md`](./prompts/genera-articolo.md), verificabili contro i payload di `test/prompt-injection-fixtures.mjs`.
 
 ## Stack
