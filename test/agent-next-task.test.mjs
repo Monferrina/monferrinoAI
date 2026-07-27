@@ -140,7 +140,9 @@ test('buildBriefingHtml: contiene il JSON completo da incollare', () => {
   const b = buildBriefing(KW, [{ url: 'https://x/a', distanza: 0.2 }]);
   const html = buildBriefingHtml(b);
   assert.match(html, /guarnizione box doccia/);
-  assert.match(html, /"target_page": "\/servizi\/box-doccia"/);
+  // Le virgolette del JSON sono entità HTML: dentro un <pre> devono comparire come testo,
+  // e il client di posta le rende di nuovo come virgolette a chi copia.
+  assert.match(html, /&quot;target_page&quot;: &quot;\/servizi\/box-doccia&quot;/);
   assert.match(html, /prompts\/genera-articolo\.md/);
 });
 
