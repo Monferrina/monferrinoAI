@@ -68,3 +68,17 @@ test('esc: neutralizza il markup nei valori che finiscono in HTML', () => {
   assert.equal(esc(null), '');
   assert.equal(esc(0), '0'); // falsy ma valido: 0 recensioni non è "nessun dato"
 });
+
+test('esc: le virgolette non escono dall’attributo che le contiene', () => {
+  // Regressione CodeQL js/incomplete-html-attribute-sanitization: questi valori finiscono
+  // dentro href="...", non solo fra i tag. Con le sole & < > un URL come quello sotto
+  // chiudeva l'attributo e piazzava un gestore di evento nel markup dell'email.
+  const cattivo = 'https://x.it/" onmouseover="fetch(\'//esfiltra\')';
+  const uscita = `<a href="${esc(cattivo)}">link</a>`;
+  // Il testo "onmouseover=" resta, ma come contenuto dell'href: quello che conta è che non
+  // ci sia una virgoletta grezza a chiudere l'attributo e trasformarlo in un gestore vero.
+  assert.doesNotMatch(uscita, /"\s+onmouseover=/);
+  assert.equal(uscita.match(/"/g).length, 2, 'le sole virgolette grezze sono i delimitatori di href');
+  assert.equal(esc('"'), '&quot;');
+  assert.equal(esc("'"), '&#39;');
+});
