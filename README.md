@@ -25,8 +25,9 @@
 ```mermaid
 flowchart TD
     subgraph GHA["⏱️ GitHub Actions — scheduled"]
-        KA["keep-alive<br/>(settimanale)"]
-        ING["ingest competitor<br/>(mensile)"]
+        KA["keep-alive<br/>(lun + gio)"]
+        ING["ingest competitor<br/>(lun 09:00)"]
+        INGS["ingest sito<br/>(lun 09:30)"]
         CHK["checkly<br/>(su PR / push main)"]
     end
 
@@ -58,7 +59,7 @@ flowchart TD
     KA --> HEART
     ING --> INGEST --> FC --> VOY --> RAG
     INGEST --> SNAP
-    INGSITE --> FC
+    INGS --> INGSITE --> FC
     SITE --> INGSITE --> SITEPG
     CHK --> CL --> SITE
     RAG -. contesto SEO .-> AGENT
@@ -84,32 +85,57 @@ flowchart TD
 ```
 .
 ├── src/
-│   ├── db.mjs                  # accesso Supabase (pg) + insert idempotente
-│   ├── fetchers.mjs            # scrape (Firecrawl) + embed (Voyage) condivisi
-│   └── snapshot.mjs            # normalizzazione snapshot (competitor + sito)
+│   ├── db.mjs                  # accesso Supabase (pg, TLS verify-full) + insert idempotente
+│   ├── fetchers.mjs            # scrape (Firecrawl) + embed (Voyage) + redact() PII
+│   ├── snapshot.mjs            # normalizzazione snapshot + guardrail anti-injection
+│   ├── ingest-gate.mjs         # gate di validità di un run (soglia + lista non vuota)
+│   ├── scope-filter.mjs        # blocklist deterministica sul backlog keyword
+│   └── ai-log.mjs              # registro attività AI (art. 12) — non bloccante
 ├── scripts/
 │   ├── ingest-competitors.mjs  # scraping Firecrawl → embeddings → competitor_snapshots
 │   ├── ingest-site.mjs         # scraping proprio sito → embeddings → site_pages (KB)
-│   ├── keepalive.mjs           # ping DB (evita pausa Supabase free 7gg)
-│   ├── healthcheck.mjs         # health check del sito
-│   └── e2e.mjs                 # test end-to-end
+│   ├── keepalive.mjs           # ping DB + purga retention (90gg snapshot, 24 mesi log)
+│   ├── healthcheck.mjs         # health check del sito (403 dal runner CI = atteso)
+│   ├── digest.mjs              # report mensile via Resend
+│   ├── backup-db.sh            # dump → R2, TLS verify-full con CA pinnata
+│   ├── restore-db.sh           # ripristino da R2 (manuale, ON_ERROR_STOP)
+│   └── e2e.mjs                 # test end-to-end della pipeline (consuma crediti)
+├── docs/
+│   ├── ai-act.md               # documentazione tecnica AI Act + retention + disclosure
+│   └── ai-act-classification.md # dossier di autoclassificazione del rischio
 ├── __checks__/
 │   └── seo.check.ts            # monitor Checkly (gruppo Agent-MonferrinoAI)
 ├── checkly.config.ts
 └── .github/
-    ├── workflows/              # keepalive · ingest · checkly
+    ├── workflows/              # keepalive · ingest · ingest-site · digest · backup · checkly · release
     └── dependabot.yml
 ```
 
 ## Workflow schedulati
 
-| Workflow    | Quando              | Cosa fa                                                                       |
-| ----------- | ------------------- | ----------------------------------------------------------------------------- |
-| `keepalive` | settimanale (lun)   | ping Supabase + health check sito + **heartbeat** (anti-disattivazione 60gg)  |
-| `ingest`    | mensile (1°)        | scraping competitor → `competitor_snapshots` + embeddings RAG                 |
-| `checkly`   | su PR / push `main` | valida i monitor sulle PR, li deploya su Checkly al merge                      |
+| Workflow       | Quando                | Cosa fa                                                                        |
+| -------------- | --------------------- | ------------------------------------------------------------------------------ |
+| `keepalive`    | lunedì e giovedì      | ping Supabase, health check sito, **heartbeat** (anti-disattivazione 60gg), purga retention |
+| `backup-db`    | lunedì + il 2 del mese | dump dello schema `public` → Cloudflare R2 (prefissi `weekly/` e `monthly/`)   |
+| `ingest`       | **lunedì 09:00 UTC**  | scraping competitor → `competitor_snapshots` + embedding RAG                    |
+| `ingest-site`  | **lunedì 09:30 UTC**  | scraping del proprio sito → `site_pages` (KB "cosa esiste già")                 |
+| `digest`       | il 2 del mese         | report via email (Resend) su posizionamento, competitor e backlog              |
+| `checkly`      | su PR / push `main`   | valida i monitor sulle PR, li deploya su Checkly al merge                       |
+| `release`      | su release pubblicata | tarball + SBOM CycloneDX, firmati con Sigstore keyless                          |
 
-> I workflow schedulati girano **solo sul default branch**. Su repo pubblico GitHub li disabilita dopo 60gg di inattività: il keep-alive committa un **heartbeat** su un branch dedicato per mantenere il repo attivo.
+> I workflow schedulati girano **solo sul default branch**. Su repo pubblico GitHub li disabilita dopo 60gg di inattività: il keep-alive committa un **heartbeat** su un branch dedicato per mantenere il repo attivo. Lo step dell'heartbeat gira con `if: !cancelled()`, così non muore se l'health check fallisce — è la rete di sicurezza, non deve dipendere dallo stato del sito.
+
+### Cadenza settimanale e budget (dal 27/7/2026)
+
+I due ingest erano rispettivamente mensile e **non schedulato affatto**: `site_pages` era rimasto fermo per quasi un mese, quindi l'agente ragionava su una foto vecchia. Ora entrambi girano il lunedì, sfalsati di mezz'ora.
+
+Il costo è verificato, non stimato: piano Firecrawl **1.000 crediti/mese**, 1 credito per pagina. `(30 + 29) × 4,33 settimane ≈ 256 crediti/mese`, cioè il **26% del piano**. Voyage resta irrilevante (~0,3% del free tier) e le Actions su repo pubblico sono gratuite.
+
+Con 4× i run, i guardrail contano 4× di più. Il gate di validità è in `src/ingest-gate.mjs`, condiviso dai due script e coperto da test: oltre alla soglia dell'80% di scrape riusciti, **aborta se la lista URL è vuota** — caso che la vecchia soglia non intercettava, perché `0 < Math.ceil(0 × 0,8)` è falso e un monitor cancellato avrebbe prodotto un run verde a mani vuote ogni settimana.
+
+### Health check: il 403 è atteso
+
+`healthcheck.mjs` riceve **403** dal runner CI: Cloudflare blocca l'IP di GitHub Actions. Lo script lo riconosce, lo dichiara nei log e **non** lo tratta come un down — il monitoraggio autorevole del sito è Checkly. Vedere `⚠ 403` nei log del keep-alive è normale.
 
 ## Sviluppo
 

@@ -1,41 +1,39 @@
-# Ingest settimanale competitor: scrape → embed → insert idempotente in competitor_snapshots.
-# Additivo (niente --fresh): accumula la storia degli snapshot cambiati.
-# Gira solo sul default branch (vincolo GitHub schedule).
+# Ingest settimanale del PROPRIO sito: scrape → embed → insert idempotente in site_pages.
+# È la parte del RAG che risponde a "cosa esiste già sul sito", e serve a non riproporre
+# contenuti che ci sono di già.
 #
-# Budget verificato il 27/7: piano Firecrawl 1.000 crediti/mese, 1 credito per pagina.
-# 30 pagine x 4,33 settimane = ~130 crediti/mese, il 13% del piano. Con anche l'ingest
-# del sito settimanale si arriva a ~256 (26%): margine ampio, i retry non lo intaccano.
-name: Ingest competitor snapshots
+# Perché esiste (27/7): questo ingest non aveva NESSUNA schedulazione — girava solo a mano.
+# Risultato: al 27 luglio site_pages era fermo al 1° luglio, quindi l'agente ragionava su una
+# foto vecchia di quasi un mese. Il RAG funzionava bene, ma su dati scaduti.
+#
+# Budget: 29 pagine × 4,33 settimane ≈ 126 crediti Firecrawl/mese, il 13% del piano da 1.000.
+# Insieme all'ingest competitor si sta al 26%.
+#
+# Gira solo sul default branch (vincolo GitHub schedule).
+name: Ingest sito (knowledge base propria)
 
 on:
   schedule:
-    - cron: '0 9 * * 1' # ogni lunedi', 09:00 UTC = 10:00 (inverno) / 11:00 (estate) Rome.
-    # Sempre DOPO il monitor Firecrawl del mattino: 09:00 UTC e' oltre il monitor in
-    # entrambe le stagioni, cosi' il DST non anticipa piu' l'ingest davanti al monitor.
-    # Lunedi' come keep-alive e backup: una sola finestra settimanale da tenere d'occhio.
+    - cron: '30 9 * * 1' # lunedì 09:30 UTC, mezz'ora dopo l'ingest competitor
+    # Sfalsato di proposito: i due job scrivono su tabelle diverse ma condividono
+    # la quota Firecrawl e il pooler Supabase. Sequenziali = più facili da leggere nei log.
   workflow_dispatch:
     inputs:
       dry_run:
         description: 'Solo scrape+validate, nessun insert (test a costo crediti minimo)'
         type: boolean
         default: false
-      fresh:
-        description: 'TRUNCATE + ripopola pulito in transazione (bonifica retroattiva PII). ~30 crediti Firecrawl.'
-        type: boolean
-        default: false
       limit:
-        description: 'Limita a N pagine (vuoto = tutte le 30)'
+        description: 'Limita a N pagine (vuoto = tutte le 29)'
         type: string
         default: ''
 
-# Least privilege: il job fa solo checkout + npm + script (gli accessi esterni
-# passano via secrets). contents:read basta e silenzia l'alert CodeQL
-# actions/missing-workflow-permissions.
+# Least privilege: solo checkout + npm + script; gli accessi esterni passano dai secrets.
 permissions:
   contents: read
 
 jobs:
-  ingest:
+  ingest-site:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -45,7 +43,7 @@ jobs:
           node-version: '22'
       - run: npm ci
       - run: npm install -g firecrawl-cli # il job usa la CLI; si autentica via FIRECRAWL_API_KEY
-      - run: npm run ingest -- ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.fresh && '--fresh' || '' }} ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
+      - run: npm run ingest:site -- ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.limit && format('--limit {0}', inputs.limit) || '' }}
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
