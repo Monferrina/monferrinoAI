@@ -121,8 +121,26 @@ sull'uso a valle.
 |---|---|---|
 | 1 | ~~Policy di retention per `competitor_snapshots`~~ → risolta: 90 giorni via keepalive | ✓ chiusa 2026-07-05 |
 | 2 | ~~Verificare region EU dello storage Supabase~~ → risolta: `eu-west-3` (Parigi, UE) | ✓ chiusa 2026-07-05 |
-| 3 | Re-ingest `--fresh` per bonificare gli snapshot salvati prima della redazione. **Perimetro ampliato il 2026-07-27**: il #44 ha esteso `redact()` a `title` e `description`, quindi la bonifica ora serve anche per i metadati salvati prima di quel merge | alta (post-merge) |
+| 3 | ~~Re-ingest `--fresh` per bonificare gli snapshot salvati prima della redazione~~ → **non necessaria, verificata sui dati** | ✓ chiusa 2026-07-27 |
 | 4 | Rivalutare art. 50 GDPR se Glassy passa a LLM o raccoglie lead | trigger |
+
+### Nota sull'azione 3 — perché è chiusa senza eseguirla
+
+Interrogato il DB il 2026-07-27, sui **30 snapshot** presenti (tutti del 2026-07-05):
+
+| Controllo sui metadati `title` / `description` | Righe |
+|---|---|
+| contengono `@` (email) | **0** |
+| pattern telefono fisso IT (`0…`) | **0** |
+| pattern telefono mobile IT (`3…`) | **0** |
+| sequenze di 6+ cifre | **0** |
+| `content_md` con marcatori `[email]`/`[tel]` | 14 su 30 (redazione già applicata) |
+
+I metadati delle pagine competitor sono **copy SEO**, non recapiti — «*Vetraio ad Asti | La Nuova Vetrinova*», «*Realizzazione Specchi su misura Asti*». Il rischio identificato in review era reale in astratto, ma su questo corpus non si materializza.
+
+Un re-ingest `--fresh` avrebbe svuotato la tabella e consumato ~30 crediti Firecrawl più un batch Voyage **per non correggere nulla**. Con `redact()` ora applicato anche ai metadati (#44), i futuri snapshot sono coperti per costruzione.
+
+*Da rifare questa verifica se cambia la lista dei competitor:* un sito che mette il numero di telefono nel `<title>` è raro ma non impossibile. La query è una `count(*) filter (...)` su `competitor_snapshots`.
 
 ## 8. Fonti di riferimento
 
