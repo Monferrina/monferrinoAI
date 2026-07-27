@@ -1,0 +1,92 @@
+# Briefing settimanale: dal backlog keyword a un'email, ogni lunedì.
+#
+# Qui NON si genera contenuto. Il workflow sceglie la prossima keyword, recupera dal RAG
+# cosa il sito copre già e spedisce il briefing; l'articolo lo scrive una persona con
+# Claude Code in locale, partendo da prompts/genera-articolo.md.
+#
+# Perché così: la generazione headless (`claude -p` in CI) richiedeva una chiave API
+# Anthropic e un token cross-repo via GitHub App — due credenziali in più da custodire per
+# un job settimanale. La scrittura in locale è coperta dall'abbonamento esistente e tiene
+# la sorveglianza umana dove l'AI Act la vuole (art. 14, docs/ai-act.md §3.3).
+name: Briefing settimanale
+
+on:
+  schedule:
+    - cron: '0 11 * * 1' # lunedì 11:00 UTC — dopo ENTRAMBI gli ingest (09:00 e 09:30 UTC).
+    # Non 10:30: l'ingest del sito ha timeout 30 min, quindi nel caso peggiore finisce alle
+    # 10:00. Un'ora di margine costa nulla e garantisce che il RAG sia già aggiornato.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Costruisce l’email di esempio e la stampa: nessun invio, nessuna keyword marcata'
+        type: boolean
+        default: false
+      content_type:
+        description: 'Forza il tipo di contenuto (faq, onpage-enrich). Vuoto = decide il backlog'
+        type: string
+        default: ''
+
+# Un run alla volta: due run in parallelo marcherebbero due keyword per la stessa settimana.
+concurrency:
+  group: briefing-settimanale
+  cancel-in-progress: false
+
+# Least privilege: il workflow non scrive nulla su GitHub, solo su Supabase e Resend.
+permissions:
+  contents: read
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      - name: Briefing dal backlog
+        env:
+          CONTENT_TYPE: ${{ inputs.content_type }} # via env, mai interpolato nello script
+          DRY_RUN: ${{ inputs.dry_run }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEFING_TO: ${{ secrets.BRIEFING_TO }}
+          DIGEST_FROM: ${{ secrets.DIGEST_FROM }} # opzionale; default nel codice (dominio verificato)
+          VOYAGE_API_KEY: ${{ secrets.VOYAGE_API_KEY }}
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+          SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REGION: ${{ secrets.SUPABASE_PROJECT_REGION }}
+        run: |
+          set -euo pipefail
+          # Due rami invece di un array di argomenti: `"${args[@]}"` vuoto con set -u
+          # esplode nelle bash < 4.4, e non voglio dipendere dalla versione del runner.
+          if [ "${DRY_RUN:-false}" = "true" ]; then
+            npm run briefing -- --email --dry-run
+          elif [ -n "${CONTENT_TYPE:-}" ]; then
+            npm run briefing -- --email --content-type "$CONTENT_TYPE"
+          else
+            npm run briefing -- --email
+          fi
+
+      # L'unico output osservabile è l'email: senza alert, "fallito" e "non ancora arrivato"
+      # sono indistinguibili. Copre anche il backlog esaurito, che esce con codice 1 apposta.
+      - name: Alert email su fallimento (Resend)
+        if: failure()
+        run: |
+          jq -n --arg to "$ALERT_TO" \
+            --arg subject "[monferrinoAI] FALLITO: $WORKFLOW" \
+            --arg text "Run fallito: $RUN_URL" \
+            '{from: "MonferrinoSEO <agente@vetreriamonferrina.com>", to: ($to | split(",")), subject: $subject, text: $text}' \
+          | curl -sf https://api.resend.com/emails \
+              -H "Authorization: Bearer $RESEND_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d @-
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_TO: ${{ secrets.DIGEST_TO }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

@@ -102,10 +102,16 @@ vivono sul sito, in un'altra proprietà, e non entrano mai in questa pipeline.
 
 - Oggi: **assistito**. Le PR sono aperte in sessione interattiva con revisione
   contestuale; il merge è sempre umano.
-- Futuro (Tier B, **non ancora costruito**): workflow headless che *apre* PR in
-  autonomia — comunque **senza mai fare merge**. Vincoli previsti: token
-  short-lived (GitHub App, no PAT), least-privilege sul solo repo sito, gate di
-  revisione umana obbligatorio, budget per run limitato.
+- Automatizzata è solo la **scelta del lavoro**, non la sua esecuzione: il workflow
+  `Briefing settimanale` (`.github/workflows/agent.yml`) pesca dal backlog una keyword,
+  interroga il RAG e ne manda il briefing per email. Non scrive contenuto, non tocca il
+  repo del sito, non ha credenziali di modello.
+- La generazione headless in CI (workflow che apre PR da solo) è stata **valutata e non
+  adottata**: avrebbe richiesto una chiave API di modello e un token cross-repo via
+  GitHub App, cioè due credenziali permanenti in più per un job settimanale. Scrivere in
+  sessione interattiva tiene la persona dentro il ciclo per costruzione, non per policy.
+  Se un domani si riapre, i vincoli restano quelli: token short-lived (GitHub App, no
+  PAT), least-privilege sul solo repo sito, gate di revisione umana, budget per run.
 
 ## 4. Sorveglianza umana (art. 14)
 
