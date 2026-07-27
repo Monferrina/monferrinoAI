@@ -94,6 +94,20 @@ Il dettaglio sta in [`docs/ai-act.md`](./docs/ai-act.md) §3.3.
 
 `scripts/agent-next-task.mjs` pesca dal backlog `seo_keywords` la candidata con più volume fra quelle ancora da fare, cerca nel RAG le tre pagine del sito semanticamente più vicine e manda il tutto per email.
 
+Il JSON che ne esce, prodotto da `buildBriefing()`, ha nove campi e nessun altro. La colonna dell'origine rende verificabile la frase sul contenuto che non esce dal database: le due voci che vengono dal RAG portano un identificatore e un numero, mai il corpo della pagina.
+
+| Campo            | Origine                | Contenuto                                                                     |
+| ---------------- | ---------------------- | ----------------------------------------------------------------------------- |
+| `keyword`        | `public.seo_keywords`  | la keyword target scelta dal backlog                                          |
+| `cluster`        | `public.seo_keywords`  | il gruppo tematico a cui appartiene                                           |
+| `volume`         | `public.seo_keywords`  | volume di ricerca (colonna `search_volume`)                                   |
+| `kd`             | `public.seo_keywords`  | difficoltà stimata                                                            |
+| `intent`         | `public.seo_keywords`  | intento di ricerca                                                            |
+| `content_type`   | `public.seo_keywords`  | `faq` (pezzo nuovo) oppure `onpage-enrich` (pagina esistente da integrare)    |
+| `target_page`    | `public.seo_keywords`  | la pagina del sito a cui la keyword punta                                     |
+| `gia_esistente`  | `public.site_pages`    | fino a 3 pagine vicine, solo `url` e `distanza` coseno                        |
+| `sezioni_pagina` | `public.site_chunks`   | le sezioni di `target_page` in ordine di lettura, solo `heading` e `distanza` |
+
 Due dettagli che sembrano minori e non lo sono.
 
 La ricerca nel RAG non usa la sola keyword. Provata contro il database reale, la keyword secca è sempre la query peggiore: su `docce` restituiva distanza 0,77 e pescava `/blog` invece di `/servizi/box-doccia`, che è la sua stessa `target_page`. Accodando `cluster` e `target_page` la distanza scende a 0,47 e la pagina giusta arriva prima su tutte e sei le candidate provate.
@@ -108,7 +122,7 @@ Dopo l'invio la keyword passa a `briefed`. Senza quella riga lo script sarebbe d
 
 Una avvertenza onesta sulle distanze delle sezioni: sono vicine fra loro, con uno scarto misurato fra 0,01 e 0,15. Una pagina di quattro sezioni sul box doccia parla di box doccia in tutte e quattro, quindi il valore di quell'elenco è la struttura, non la classifica. Su un caso su quattro (pulizia e anticalcare) la sezione giusta si stacca davvero, sugli altri no.
 
-I chunk si derivano da `site_pages` senza ri-scrapare: il markdown è già nel database, quindi `chunk-site.mjs` non consuma un credito Firecrawl. Le 29 pagine danno 157 chunk, mediana 453 caratteri.
+I chunk si derivano da `site_pages` senza ri-scrapare: il markdown è già nel database, quindi `chunk-site.mjs` non consuma un credito Firecrawl. Le 29 pagine danno 158 chunk, mediana 458 caratteri e p90 877.
 
 ### Perché la scrittura non usa una skill di blogging
 
@@ -120,7 +134,7 @@ Resta utile a pezzo finito: `/blog-seo-check` valida title, meta description, ge
 
 Il briefing del lunedì porta i passi scritti dentro l'email, così l'unico punto in cui l'automazione consegna il lavoro a una persona non è muto.
 
-Nel briefing non entra una riga di testo scrapato. Del RAG escono solo URL e distanze, per scelta: il contenuto delle pagine è materiale di terzi, e ciò che non entra nel briefing non può entrare nel prompt. Le regole per chi scrive stanno in [`prompts/genera-articolo.md`](./prompts/genera-articolo.md), verificabili contro i payload di `test/prompt-injection-fixtures.mjs`.
+Nel briefing non entra il corpo di nessuna pagina. Del RAG escono solo URL, heading e distanze, per scelta: il testo delle pagine resta nel database, e ciò che non entra nel briefing non può entrare nel prompt. Le regole per chi scrive stanno in [`prompts/genera-articolo.md`](./prompts/genera-articolo.md), verificabili contro i payload di `test/prompt-injection-fixtures.mjs`.
 
 ## Stack
 
@@ -134,7 +148,7 @@ Nel briefing non entra una riga di testo scrapato. Del RAG escono solo URL e dis
 | Monitoring         | Checkly, monitoring-as-code                                |
 | Scheduling e CI    | GitHub Actions                                             |
 | Sicurezza          | CodeQL, Dependabot, secret scanning, ruleset protect-main  |
-| Test               | `node:test` (unit e integration su DB reale)               |
+| Test               | `node:test`, 95 test in `test/` (unit e integration su DB reale) |
 
 ## Struttura
 
@@ -153,6 +167,7 @@ Nel briefing non entra una riga di testo scrapato. Del RAG escono solo URL e dis
 │   ├── ingest-competitors.mjs  # scraping Firecrawl → embeddings → competitor_snapshots
 │   ├── ingest-site.mjs         # scraping proprio sito → embeddings → site_pages
 │   ├── chunk-site.mjs          # site_pages → sezioni → embeddings → site_chunks (no scrape)
+│   ├── scope-filter.mjs        # marca is_noise le keyword fuori-scope del backlog
 │   ├── agent-next-task.mjs     # sceglie la keyword, interroga il RAG, spedisce il briefing
 │   ├── keepalive.mjs           # ping DB + purga retention (90gg snapshot, 24 mesi log)
 │   ├── healthcheck.mjs         # health check del sito (403 dal runner CI è atteso)
@@ -169,7 +184,7 @@ Nel briefing non entra una riga di testo scrapato. Del RAG escono solo URL e dis
 │   └── seo.check.ts            # monitor Checkly (gruppo Agent-MonferrinoAI)
 ├── checkly.config.ts
 └── .github/
-    ├── workflows/              # keepalive · ingest · ingest-site · agent · digest · backup · checkly · release
+    ├── workflows/              # ci · keepalive · ingest · ingest-site · agent · digest · backup · checkly · release
     └── dependabot.yml
 ```
 
@@ -208,17 +223,21 @@ Servono Node.js 22 o superiore e npm 10 o superiore. I segreti stanno in `.env.l
 
 ```bash
 npm ci
-npm test                      # unit e integration (node:test)
+npm run lint                  # eslint, bloccante in CI
+npm test                      # unit e integration (node:test), 95 test
 npm run healthcheck           # health check del sito
 npm run briefing              # briefing su stdout, non invia nulla
 npm run briefing -- --email   # invia davvero e marca la keyword
 npm run chunk                 # rifà i chunk delle pagine cambiate (niente scrape)
 npm run chunk -- --force      # ricostruisce tutti i chunk, dopo modifiche al chunker
+npm run scope-filter          # elenca le keyword fuori-scope del backlog (con --apply le marca)
 npm run ingest                # ingest competitor (consuma quota Firecrawl e Voyage)
 npm run checkly:test          # valida i monitor Checkly
 ```
 
 `npm run briefing` senza argomenti è di sola lettura: stampa il JSON e non tocca niente. Con `--dry-run` non apre nemmeno la connessione e usa dati di esempio, che è il modo di provare la forma dell'email senza consumare crediti.
+
+Il workflow `ci` gira su ogni PR e su ogni push su `main`, ed è il gate obbligatorio: `npm audit --audit-level=high`, `npm run lint` e `node --test`, in quest'ordine. I tre comandi girano identici in locale, quindi una PR che passa qui passa anche là.
 
 ## Sicurezza
 
