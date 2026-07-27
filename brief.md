@@ -58,6 +58,20 @@ candidate equivalenti.
 
 Box doccia in primavera e in estate, specchi tutto l'anno.
 
+## Regole di lavoro
+
+Due regole di metodo che valgono da prima che esistesse l'automazione, e che l'automazione
+non abroga.
+
+Mai assunzioni sul contenuto o sulla struttura del sito e dei competitor: ogni analisi parte
+dai dati reali. Gli ingest del lunedì tengono fresca la knowledge base, ma per un'analisi
+fuori cadenza, o dopo una modifica al sito, si riesegue lo scrape prima di trarre
+conclusioni.
+
+Prima di implementare qualcosa su un componente esterno (Supabase, Firecrawl, Voyage,
+Resend, Checkly e simili) si consulta la wiki `monferrina-docs`: tiene le decisioni già
+prese e i vincoli già scoperti, e costa meno rileggerla che riscoprirli.
+
 ## Schema derivato dai dati
 
 Lo schema Supabase si deriva dai dati osservati in un run reale, non si progetta a priori.
