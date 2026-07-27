@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { toSnapshot, validateSnapshot, scanContent, pageType } from '../src/snapshot.mjs';
 import { makeClient, loadEnv, insertSnapshot } from '../src/db.mjs';
 import { scrape, embed } from '../src/fetchers.mjs';
+import { checkIngestRun } from '../src/ingest-gate.mjs';
 import { logAiRun } from '../src/ai-log.mjs';
 
 const startedAt = new Date();
@@ -54,11 +55,11 @@ docs = docs.filter((d) => {
   return threats.length === 0;
 });
 if (docs.length < beforeScan) console.warn(`  scartate ${beforeScan - docs.length} pagine con codice/injection.`);
-// Soglia minima: sotto l'80% di scrape riusciti il run fallisce (exit 1). Senza,
-// bastava 1/30 pagina per un run "verde" che maschera un ingest quasi vuoto.
-const MIN_OK_RATIO = 0.8;
-if (docs.length < Math.ceil(urls.length * MIN_OK_RATIO)) {
-  console.error(`scrape sotto soglia (${docs.length}/${urls.length} < ${MIN_OK_RATIO * 100}%): abort.`);
+// Gate di validità del run: soglia minima di scrape riusciti E lista non vuota.
+// Logica in src/ingest-gate.mjs perché è condivisa con l'altro ingest ed è testabile.
+const gate = checkIngestRun(urls.length, docs.length);
+if (!gate.ok) {
+  console.error(`${gate.reason}: abort.`);
   process.exit(1);
 }
 
