@@ -1,4 +1,4 @@
-# monferrinoAI 🤖
+# monferrinoAI
 
 [![Checkly](https://github.com/Monferrina/monferrinoAI/actions/workflows/checkly.yml/badge.svg)](https://github.com/Monferrina/monferrinoAI/actions/workflows/checkly.yml)
 [![Keep-alive](https://github.com/Monferrina/monferrinoAI/actions/workflows/keepalive.yml/badge.svg)](https://github.com/Monferrina/monferrinoAI/actions/workflows/keepalive.yml)
@@ -9,6 +9,7 @@
 [![pgvector](https://img.shields.io/badge/pgvector-RAG-4169E1?logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
 [![Voyage AI](https://img.shields.io/badge/Voyage_AI-embeddings-5A3FFF)](https://www.voyageai.com)
 [![Firecrawl](https://img.shields.io/badge/Firecrawl-scraping-FF6B35)](https://www.firecrawl.dev)
+[![Resend](https://img.shields.io/badge/Resend-email-000000?logo=resend&logoColor=white)](https://resend.com)
 [![Checkly](https://img.shields.io/badge/Checkly-monitoring-3A52EE)](https://www.checklyhq.com)
 
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-scheduled-2088FF?logo=githubactions&logoColor=white)](https://github.com/Monferrina/monferrinoAI/actions)
@@ -18,67 +19,99 @@
 
 ---
 
-**Monferrino** è l'agente IA schedulato a supporto di **[vetreriamonferrina.com](https://vetreriamonferrina.com)**: cura SEO/AEO e contenuti, ingerisce l'attività dei competitor in un knowledge base RAG e monitora in continuo lo stato del sito. Gira interamente su **GitHub Actions** (nessun server da mantenere) con **Supabase** come memoria.
+**Monferrino** è l'agente schedulato che lavora per [vetreriamonferrina.com](https://vetreriamonferrina.com): tiene una base di conoscenza del sito e dei competitor su Supabase, sorveglia lo stato della produzione e ogni lunedì propone il prossimo contenuto da scrivere. Gira su GitHub Actions, senza alcun server da mantenere.
+
+Non scrive contenuto da solo. Sceglie il lavoro, prepara il contesto e manda un briefing per email: l'articolo lo scrive una persona, e il merge lo decide il titolare. È una scelta, non una limitazione tecnica, e il perché è spiegato in [Cosa fa e cosa non fa](#cosa-fa-e-cosa-non-fa).
 
 ## Architettura
 
 ```mermaid
 flowchart TD
-    subgraph GHA["⏱️ GitHub Actions — scheduled"]
-        KA["keep-alive<br/>(lun + gio)"]
-        ING["ingest competitor<br/>(lun 09:00)"]
-        INGS["ingest sito<br/>(lun 09:30)"]
-        CHK["checkly<br/>(su PR / push main)"]
+    subgraph GHA["GitHub Actions, schedulati"]
+        KA["keep-alive<br/>lun + gio"]
+        ING["ingest competitor<br/>lun 09:00 UTC"]
+        INGS["ingest sito<br/>lun 09:30 UTC"]
+        BRIEF["briefing<br/>lun 11:00 UTC"]
+        DIG["digest<br/>il 2 del mese"]
+        BK["backup<br/>lun + il 2 del mese"]
     end
 
-    subgraph PIPE["Pipeline — Node.js ESM"]
-        KEEP["keepalive.mjs"]
+    subgraph PIPE["Pipeline, Node.js ESM"]
+        KEEP["keepalive.mjs<br/>ping + purga retention"]
         HEALTH["healthcheck.mjs"]
-        HEART["heartbeat<br/>→ branch 'heartbeat'"]
+        HEART["heartbeat<br/>branch dedicato"]
         INGEST["ingest-competitors.mjs"]
         INGSITE["ingest-site.mjs"]
+        NEXT["agent-next-task.mjs<br/>sceglie + interroga il RAG"]
+        DIGEST["digest.mjs"]
     end
 
     subgraph EXT["Servizi esterni"]
-        FC["Firecrawl<br/>scraping competitor"]
+        FC["Firecrawl<br/>scraping"]
         VOY["Voyage AI<br/>embeddings"]
-        CL["Checkly<br/>monitoring SEO"]
+        RS["Resend<br/>email"]
+        CL["Checkly<br/>monitoring"]
     end
 
-    subgraph DB["🗄️ Supabase — Postgres + pgvector"]
+    subgraph DB["Supabase, Postgres + pgvector"]
         SNAP["competitor_snapshots"]
-        SITEPG["site_pages<br/>(KB proprio sito)"]
-        RAG["RAG store<br/>(embeddings)"]
+        SITEPG["site_pages"]
+        KW["seo_keywords<br/>backlog"]
+        LOG["ai_run_log"]
     end
 
-    SITE["🌐 vetreriamonferrina.com"]
-    AGENT["🤖 Agente claude-seo<br/>→ micro-PR sul sito"]
+    SITE["vetreriamonferrina.com"]
+    PERSONA["Persona + Claude Code<br/>in locale"]
 
     KA --> KEEP --> DB
     KA --> HEALTH --> SITE
     KA --> HEART
-    ING --> INGEST --> FC --> VOY --> RAG
-    INGEST --> SNAP
+    ING --> INGEST --> FC --> VOY --> SNAP
     INGS --> INGSITE --> FC
     SITE --> INGSITE --> SITEPG
-    CHK --> CL --> SITE
-    RAG -. contesto SEO .-> AGENT
-    SITEPG -. "cosa esiste già" .-> AGENT
-    AGENT -. PR enrichment .-> SITE
+    BRIEF --> NEXT
+    KW -- "candidata" --> NEXT
+    SITEPG -- "cosa esiste già" --> NEXT
+    NEXT --> RS --> PERSONA
+    NEXT --> LOG
+    PERSONA -- "PR, mai merge" --> SITE
+    DIG --> DIGEST --> RS
+    CL --> SITE
 ```
 
-## Tech Stack
+## Cosa fa e cosa non fa
 
-| Categoria          | Tecnologia                                                  |
-| ------------------ | ----------------------------------------------------------- |
-| Runtime            | Node.js 22 (ESM, zero-build)                                |
-| Database / memoria | Supabase — PostgreSQL                                        |
-| RAG                | pgvector + embeddings **Voyage AI**                         |
-| Web scraping       | Firecrawl (snapshot competitor)                             |
-| Monitoring         | Checkly — monitoring-as-code (SEO health, daily)            |
-| Scheduling / CI    | GitHub Actions (cron settimanale + mensile)                 |
-| Sicurezza          | CodeQL, Dependabot, secret scanning, ruleset `protect-main` |
-| Test               | `node:test` (unit + integration su DB reale)                |
+Automatico è il contorno: raccogliere i dati, tenerli freschi, scegliere su cosa vale la pena scrivere, dire cosa il sito copre già. Manuale è il centro: scrivere l'articolo e decidere se pubblicarlo.
+
+La generazione headless in CI era già scritta e funzionante sulla carta, poi scartata. Serviva una chiave API di modello e un token cross-repo via GitHub App, cioè due credenziali permanenti in più da custodire per far girare un job una volta a settimana. Scrivere in sessione interattiva costa zero, perché è coperto da un abbonamento che esiste già, e tiene la persona dentro il ciclo per costruzione invece che per policy. La sorveglianza umana dell'art. 14 dell'AI Act qui non è una promessa nel dossier: non esistono proprio le credenziali per aggirarla.
+
+Il dettaglio sta in [`docs/ai-act.md`](./docs/ai-act.md) §3.3.
+
+## Il briefing del lunedì
+
+`scripts/agent-next-task.mjs` pesca dal backlog `seo_keywords` la candidata con più volume fra quelle ancora da fare, cerca nel RAG le tre pagine del sito semanticamente più vicine e manda il tutto per email.
+
+Due dettagli che sembrano minori e non lo sono.
+
+La ricerca nel RAG non usa la sola keyword. Provata contro il database reale, la keyword secca è sempre la query peggiore: su `docce` restituiva distanza 0,77 e pescava `/blog` invece di `/servizi/box-doccia`, che è la sua stessa `target_page`. Accodando `cluster` e `target_page` la distanza scende a 0,47 e la pagina giusta arriva prima su tutte e sei le candidate provate.
+
+Dopo l'invio la keyword passa a `briefed`. Senza quella riga lo script sarebbe deterministico e rimanderebbe la stessa candidata ogni lunedì, per sempre. La marcatura avviene dopo l'email e mai prima: se Resend fallisce la riga resta `todo` e torna la settimana dopo, mentre il caso opposto perderebbe la candidata in silenzio.
+
+Nel briefing non entra una riga di testo scrapato. Del RAG escono solo URL e distanze, per scelta: il contenuto delle pagine è materiale di terzi, e ciò che non entra nel briefing non può entrare nel prompt. Le regole per chi scrive stanno in [`prompts/genera-articolo.md`](./prompts/genera-articolo.md), verificabili contro i payload di `test/prompt-injection-fixtures.mjs`.
+
+## Stack
+
+| Categoria          | Tecnologia                                                 |
+| ------------------ | ---------------------------------------------------------- |
+| Runtime            | Node.js 22 (ESM, zero-build)                               |
+| Database e memoria | Supabase, PostgreSQL                                       |
+| RAG                | pgvector con embeddings Voyage AI                          |
+| Web scraping       | Firecrawl                                                  |
+| Email              | Resend (digest mensile e briefing settimanale)             |
+| Monitoring         | Checkly, monitoring-as-code                                |
+| Scheduling e CI    | GitHub Actions                                             |
+| Sicurezza          | CodeQL, Dependabot, secret scanning, ruleset protect-main  |
+| Test               | `node:test` (unit e integration su DB reale)               |
 
 ## Struttura
 
@@ -90,68 +123,81 @@ flowchart TD
 │   ├── snapshot.mjs            # normalizzazione snapshot + guardrail anti-injection
 │   ├── ingest-gate.mjs         # gate di validità di un run (soglia + lista non vuota)
 │   ├── scope-filter.mjs        # blocklist deterministica sul backlog keyword
-│   └── ai-log.mjs              # registro attività AI (art. 12) — non bloccante
+│   ├── mailer.mjs              # invio Resend condiviso, con fetch iniettabile
+│   └── ai-log.mjs              # registro attività AI (art. 12), non bloccante
 ├── scripts/
 │   ├── ingest-competitors.mjs  # scraping Firecrawl → embeddings → competitor_snapshots
-│   ├── ingest-site.mjs         # scraping proprio sito → embeddings → site_pages (KB)
+│   ├── ingest-site.mjs         # scraping proprio sito → embeddings → site_pages
+│   ├── agent-next-task.mjs     # sceglie la keyword, interroga il RAG, spedisce il briefing
 │   ├── keepalive.mjs           # ping DB + purga retention (90gg snapshot, 24 mesi log)
-│   ├── healthcheck.mjs         # health check del sito (403 dal runner CI = atteso)
+│   ├── healthcheck.mjs         # health check del sito (403 dal runner CI è atteso)
 │   ├── digest.mjs              # report mensile via Resend
 │   ├── backup-db.sh            # dump → R2, TLS verify-full con CA pinnata
 │   ├── restore-db.sh           # ripristino da R2 (manuale, ON_ERROR_STOP)
 │   └── e2e.mjs                 # test end-to-end della pipeline (consuma crediti)
+├── prompts/
+│   └── genera-articolo.md      # istruzioni per chi scrive l'articolo, con le regole §3
 ├── docs/
-│   ├── ai-act.md               # documentazione tecnica AI Act + retention + disclosure
+│   ├── ai-act.md               # documentazione tecnica AI Act, retention, disclosure
 │   └── ai-act-classification.md # dossier di autoclassificazione del rischio
 ├── __checks__/
 │   └── seo.check.ts            # monitor Checkly (gruppo Agent-MonferrinoAI)
 ├── checkly.config.ts
 └── .github/
-    ├── workflows/              # keepalive · ingest · ingest-site · digest · backup · checkly · release
+    ├── workflows/              # keepalive · ingest · ingest-site · agent · digest · backup · checkly · release
     └── dependabot.yml
 ```
 
 ## Workflow schedulati
 
-| Workflow       | Quando                | Cosa fa                                                                        |
-| -------------- | --------------------- | ------------------------------------------------------------------------------ |
-| `keepalive`    | lunedì e giovedì      | ping Supabase, health check sito, **heartbeat** (anti-disattivazione 60gg), purga retention |
-| `backup-db`    | lunedì + il 2 del mese | dump dello schema `public` → Cloudflare R2 (prefissi `weekly/` e `monthly/`)   |
-| `ingest`       | **lunedì 09:00 UTC**  | scraping competitor → `competitor_snapshots` + embedding RAG                    |
-| `ingest-site`  | **lunedì 09:30 UTC**  | scraping del proprio sito → `site_pages` (KB "cosa esiste già")                 |
-| `digest`       | il 2 del mese         | report via email (Resend) su posizionamento, competitor e backlog              |
-| `checkly`      | su PR / push `main`   | valida i monitor sulle PR, li deploya su Checkly al merge                       |
-| `release`      | su release pubblicata | tarball + SBOM CycloneDX, firmati con Sigstore keyless                          |
+| Workflow      | Quando                 | Cosa fa                                                                                     |
+| ------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
+| `keepalive`   | lunedì e giovedì       | ping Supabase, health check sito, heartbeat anti-disattivazione, purga retention             |
+| `backup-db`   | lunedì e il 2 del mese | dump dello schema `public` verso Cloudflare R2 (prefissi `weekly/` e `monthly/`)             |
+| `ingest`      | lunedì 09:00 UTC       | scraping competitor verso `competitor_snapshots`, con embedding RAG                          |
+| `ingest-site` | lunedì 09:30 UTC       | scraping del proprio sito verso `site_pages`, la base "cosa esiste già"                      |
+| `agent`       | lunedì 11:00 UTC       | sceglie la keyword dal backlog e ne spedisce il briefing via email                           |
+| `digest`      | il 2 del mese          | report via email su posizionamento, competitor e stato del backlog                           |
+| `checkly`     | su PR e push su `main` | valida i monitor sulle PR, li deploya su Checkly al merge                                     |
+| `release`     | su release pubblicata  | tarball e SBOM CycloneDX, firmati con Sigstore keyless                                        |
 
-> I workflow schedulati girano **solo sul default branch**. Su repo pubblico GitHub li disabilita dopo 60gg di inattività: il keep-alive committa un **heartbeat** su un branch dedicato per mantenere il repo attivo. Lo step dell'heartbeat gira con `if: !cancelled()`, così non muore se l'health check fallisce — è la rete di sicurezza, non deve dipendere dallo stato del sito.
+L'orario del briefing non è casuale: l'ingest del sito ha timeout di 30 minuti, quindi nel caso peggiore finisce alle 10:00. Un'ora di margine costa nulla e garantisce che il RAG interrogato sia quello aggiornato.
 
-### Cadenza settimanale e budget (dal 27/7/2026)
+I workflow schedulati girano solo sul default branch. Su repo pubblico GitHub li disabilita dopo 60 giorni di inattività, quindi il keep-alive committa un heartbeat su un branch dedicato per tenere il repo attivo. Quello step gira con `if: !cancelled()`, così non muore insieme all'health check: è la rete di sicurezza, non deve dipendere dallo stato del sito.
 
-I due ingest erano rispettivamente mensile e **non schedulato affatto**: `site_pages` era rimasto fermo per quasi un mese, quindi l'agente ragionava su una foto vecchia. Ora entrambi girano il lunedì, sfalsati di mezz'ora.
+### Cadenza settimanale e budget
 
-Il costo è verificato, non stimato: piano Firecrawl **1.000 crediti/mese**, 1 credito per pagina. `(30 + 29) × 4,33 settimane ≈ 256 crediti/mese`, cioè il **26% del piano**. Voyage resta irrilevante (~0,3% del free tier) e le Actions su repo pubblico sono gratuite.
+I due ingest erano rispettivamente mensile e non schedulato affatto, quindi `site_pages` era rimasto fermo per quasi un mese e l'agente ragionava su una foto vecchia. Ora girano entrambi il lunedì, sfalsati di mezz'ora.
 
-Con 4× i run, i guardrail contano 4× di più. Il gate di validità è in `src/ingest-gate.mjs`, condiviso dai due script e coperto da test: oltre alla soglia dell'80% di scrape riusciti, **aborta se la lista URL è vuota** — caso che la vecchia soglia non intercettava, perché `0 < Math.ceil(0 × 0,8)` è falso e un monitor cancellato avrebbe prodotto un run verde a mani vuote ogni settimana.
+Il costo è verificato, non stimato: piano Firecrawl da 1.000 crediti al mese, 1 credito per pagina, `(30 + 29) × 4,33 settimane ≈ 256 crediti al mese`, cioè il 26% del piano. Voyage resta irrilevante, sotto l'1% del free tier, e le Actions su repo pubblico sono gratuite.
+
+Con quattro volte i run, i guardrail contano quattro volte di più. Il gate di validità sta in `src/ingest-gate.mjs`, condiviso dai due script e coperto da test: oltre alla soglia dell'80% di scrape riusciti, aborta se la lista URL è vuota. Quel caso la vecchia soglia non lo intercettava, perché `0 < Math.ceil(0 × 0,8)` è falso, e un monitor cancellato avrebbe prodotto un run verde a mani vuote ogni settimana.
 
 ### Health check: il 403 è atteso
 
-`healthcheck.mjs` riceve **403** dal runner CI: Cloudflare blocca l'IP di GitHub Actions. Lo script lo riconosce, lo dichiara nei log e **non** lo tratta come un down — il monitoraggio autorevole del sito è Checkly. Vedere `⚠ 403` nei log del keep-alive è normale.
+`healthcheck.mjs` riceve 403 dal runner CI, perché Cloudflare blocca l'IP di GitHub Actions. Lo script lo riconosce, lo dichiara nei log e non lo tratta come un down: il monitoraggio autorevole del sito è Checkly. Vedere `⚠ 403` nei log del keep-alive è normale.
 
 ## Sviluppo
 
-Requisiti: **Node.js ≥ 22**, **npm ≥ 10**. Segreti in `.env.local` (mai committati).
+Servono Node.js 22 o superiore e npm 10 o superiore. I segreti stanno in `.env.local`, che non viene mai committato.
 
 ```bash
 npm ci
-npm test              # unit + integration (node:test)
-npm run healthcheck   # health check del sito
-npm run ingest        # ingest competitor (consuma quota Firecrawl/Voyage)
-npm run checkly:test  # valida i monitor Checkly
+npm test                      # unit e integration (node:test)
+npm run healthcheck           # health check del sito
+npm run briefing              # briefing su stdout, non invia nulla
+npm run briefing -- --email   # invia davvero e marca la keyword
+npm run ingest                # ingest competitor (consuma quota Firecrawl e Voyage)
+npm run checkly:test          # valida i monitor Checkly
 ```
+
+`npm run briefing` senza argomenti è di sola lettura: stampa il JSON e non tocca niente. Con `--dry-run` non apre nemmeno la connessione e usa dati di esempio, che è il modo di provare la forma dell'email senza consumare crediti.
 
 ## Sicurezza
 
-Policy di segnalazione vulnerabilità in [`SECURITY.md`](./SECURITY.md). Segreti solo in GitHub Secrets / `.env.local`; token dei workflow in sola lettura (least privilege); `main` protetto (solo PR squash, check CodeQL obbligatorio). Le GitHub Actions sono pinnate per SHA e non per tag — i tag sono mobili, ed è il vettore usato nell'attacco a `tj-actions/changed-files`. Un `npm audit --audit-level=high` bloccante in CI formalizza "niente vulnerabilità note al rilascio".
+La policy di segnalazione vulnerabilità sta in [`SECURITY.md`](./SECURITY.md). I segreti vivono solo in GitHub Secrets o in `.env.local`, i token dei workflow sono in sola lettura, `main` è protetto con sole PR squash e CodeQL obbligatorio.
+
+Le GitHub Actions sono pinnate per SHA e non per tag. I tag sono mobili, ed è il vettore usato nell'attacco a `tj-actions/changed-files`. Un `npm audit --audit-level=high` bloccante in CI rende "niente vulnerabilità note al rilascio" una condizione verificata invece che una buona intenzione.
 
 ## Verificare una release
 
@@ -169,10 +215,10 @@ gh attestation verify "monferrino-$TAG.tar.gz" \
   --repo Monferrina/monferrinoAI --predicate-type https://cyclonedx.org/bom
 ```
 
-La SBOM elenca le sole dipendenze **runtime** (`--omit dev`): è ciò che serve per rispondere in 24 ore alla domanda «questa CVE ci tocca?», che è il motivo per cui il CRA la richiede.
+La SBOM elenca le sole dipendenze runtime (`--omit dev`): è ciò che serve per rispondere in 24 ore alla domanda «questa CVE ci tocca?», che è poi il motivo per cui il CRA la richiede.
 
 ## Licenza
 
-**All Rights Reserved** © Vetreria Monferrina di Fioravanti Giuseppe — Casale Monferrato (AL).
+All Rights Reserved © Vetreria Monferrina di Fioravanti Giuseppe, Casale Monferrato (AL).
 
-Il codice è pubblico a scopo dimostrativo. Non esiste alcun file `LICENSE` e **non è concessa alcuna licenza d'uso**: nessun permesso di riuso, redistribuzione od opere derivate. Un repository pubblico senza licenza è legalmente già così — scriverlo serve a non lasciare in giro l'ambiguità con le aspettative open source.
+Il codice è pubblico a scopo dimostrativo. Non esiste alcun file `LICENSE` e non è concessa alcuna licenza d'uso: nessun permesso di riuso, redistribuzione o opere derivate. Un repository pubblico senza licenza è legalmente già così, ma scriverlo evita l'ambiguità con le aspettative open source.
