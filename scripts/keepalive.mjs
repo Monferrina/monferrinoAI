@@ -8,6 +8,10 @@ import { makeClient, loadEnv } from '../src/db.mjs';
 // gira 2×/settimana (lun+gio) → età massima effettiva ~90+4 giorni. ponytail: piggyback sul
 // keepalive, niente pg_cron; se un giorno servisse enforcement esatto giornaliero → pg_cron.
 const RETENTION_DAYS = 90;
+// Il registro attività ha un orizzonte più lungo dei contenuti: serve alla tracciabilità
+// delle operazioni automatiche (AI Act art. 12), non a conservare testo. 24 mesi. Senza
+// questa purga la tabella cresceva senza limite — gap emerso riscrivendo la mappa dati.
+const LOG_RETENTION_DAYS = 730;
 
 const g = loadEnv('.env.local');
 const client = makeClient(g);
@@ -16,11 +20,16 @@ const { rowCount: purged } = await client.query(
   'delete from public.competitor_snapshots where scraped_at < now() - make_interval(days => $1)',
   [RETENTION_DAYS],
 );
+const { rowCount: purgedLogs } = await client.query(
+  'delete from public.ai_run_log where started_at < now() - make_interval(days => $1)',
+  [LOG_RETENTION_DAYS],
+);
 const { rows } = await client.query(
   'select now() as ts, (select count(*)::int from public.competitor_snapshots) as snapshots',
 );
 await client.end();
 console.log(
   `keep-alive ok: ${rows[0].ts} — ${rows[0].snapshots} snapshot in competitor_snapshots ` +
-    `(retention ${RETENTION_DAYS}gg: ${purged} cancellati)`,
+    `(retention ${RETENTION_DAYS}gg: ${purged} cancellati; ` +
+    `ai_run_log ${LOG_RETENTION_DAYS}gg: ${purgedLogs} cancellati)`,
 );

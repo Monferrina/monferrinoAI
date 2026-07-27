@@ -121,7 +121,7 @@ sull'uso a valle.
 |---|---|---|
 | 1 | ~~Policy di retention per `competitor_snapshots`~~ → risolta: 90 giorni via keepalive | ✓ chiusa 2026-07-05 |
 | 2 | ~~Verificare region EU dello storage Supabase~~ → risolta: `eu-west-3` (Parigi, UE) | ✓ chiusa 2026-07-05 |
-| 3 | Re-ingest `--fresh` per bonificare gli snapshot salvati prima della redazione | alta (post-merge) |
+| 3 | Re-ingest `--fresh` per bonificare gli snapshot salvati prima della redazione. **Perimetro ampliato il 2026-07-27**: il #44 ha esteso `redact()` a `title` e `description`, quindi la bonifica ora serve anche per i metadati salvati prima di quel merge | alta (post-merge) |
 | 4 | Rivalutare art. 50 GDPR se Glassy passa a LLM o raccoglie lead | trigger |
 
 ## 8. Fonti di riferimento
