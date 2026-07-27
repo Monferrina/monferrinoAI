@@ -16,6 +16,7 @@
     "keepalive": "node scripts/keepalive.mjs",
     "digest": "node scripts/digest.mjs",
     "briefing": "node scripts/agent-next-task.mjs",
+    "chunk": "node scripts/chunk-site.mjs",
     "healthcheck": "node scripts/healthcheck.mjs",
     "checkly:test": "checkly test",
     "checkly:deploy": "checkly deploy"

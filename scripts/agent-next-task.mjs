@@ -72,6 +72,26 @@ const VICINE_SQL = `
   order by distanza
   limit 3`;
 
+/**
+ * Le sezioni della pagina target, in ordine di lettura, con la distanza di ognuna dalla
+ * keyword. Risponde alla domanda delle keyword `onpage-enrich`, che sono più della metà del
+ * backlog: non «quale pagina tocco» (lo dice già target_page) ma «cosa c'è già su quella
+ * pagina e dove manca il pezzo». Ordinate per chunk_index e non per distanza, perché serve
+ * vedere la struttura della pagina, non una classifica.
+ *
+ * Il confronto normalizza entrambi i lati a un percorso senza dominio né slash finale:
+ * site_chunks salva l'URL intero, il backlog salva lo slug.
+ */
+const SEZIONI_SQL = `
+  select heading, chunk_index, embedding <=> $1::vector as distanza
+    from (
+      select heading, chunk_index, embedding,
+             coalesce(nullif(rtrim(regexp_replace(url, '^https?://[^/]+', ''), '/'), ''), '/') as percorso
+        from public.site_chunks
+    ) t
+   where percorso = coalesce(nullif(rtrim($2, '/'), ''), '/')
+   order by chunk_index`;
+
 // Una keyword briefata non deve ripresentarsi il lunedì dopo: senza questo UPDATE lo script
 // è deterministico e manderebbe per sempre la stessa candidata. 'briefed' è uno stato
 // intermedio fra 'todo' e 'published': se l'articolo non viene scritto la riga resta lì,
@@ -83,7 +103,7 @@ const MARCA_SQL = `update public.seo_keywords set status = 'briefed' where id = 
  * Briefing: riga di seo_keywords + vicine di site_pages → JSON per chi scriverà l'articolo.
  * Pura, così il --dry-run stampa esattamente la stessa forma della produzione.
  */
-export function buildBriefing(kw, vicine = []) {
+export function buildBriefing(kw, vicine = [], sezioni = []) {
   return {
     keyword: clean(kw.keyword, 200),
     cluster: clean(kw.cluster, 120),
@@ -97,6 +117,12 @@ export function buildBriefing(kw, vicine = []) {
     gia_esistente: vicine.slice(0, 3).map((r) => {
       const d = num(r.distanza); // pg torna i float8 come stringa: Number() prima di arrotondare
       return { url: clean(r.url, 300), distanza: d === null ? null : Math.round(d * 1e4) / 1e4 };
+    }),
+    // Le sezioni della pagina target, in ordine di lettura. Anche qui solo heading e
+    // distanza: il testo della sezione resta nel DB, non entra nel briefing.
+    sezioni_pagina: sezioni.map((r) => {
+      const d = num(r.distanza);
+      return { heading: clean(r.heading, 200), distanza: d === null ? null : Math.round(d * 1e4) / 1e4 };
     }),
   };
 }
@@ -121,6 +147,22 @@ export function buildBriefingHtml(b) {
       '<p style="color:#999;font-size:12px;margin:6px 0 0">Distanza coseno: più bassa = più simile. Sotto 0,35 il tema è già coperto bene.</p>'
     : '<p>Nessuna pagina simile nel RAG: argomento scoperto.</p>';
 
+  // Le sezioni della pagina target, tutte e in ordine di lettura. Il valore è la STRUTTURA:
+  // si vede cosa la pagina già copre senza aprirla. Le distanze sono un indizio debole e
+  // vanno presentate come tali: misurate sulle pagine reali, lo scarto fra la sezione più
+  // vicina e la più lontana sta fra 0,01 e 0,15, perché una pagina di quattro sezioni sul
+  // box doccia parla di box doccia in tutte e quattro.
+  const sezioni = b.sezioni_pagina.length
+    ? `<table style="border-collapse:collapse;font-size:14px">${b.sezioni_pagina
+        .map(
+          (s) =>
+            `<tr><td style="padding:4px 8px">${esc(s.heading ?? '(apertura)')}</td>` +
+            `<td style="padding:4px 8px;text-align:right;color:#666">${s.distanza ?? '—'}</td></tr>`,
+        )
+        .join('')}</table>` +
+      '<p style="color:#999;font-size:12px;margin:6px 0 0">Questa è la struttura attuale della pagina. Le distanze qui dentro sono vicine fra loro (tutte le sezioni parlano dello stesso argomento): servono a orientarsi, non a decidere.</p>'
+    : `<p>La pagina <code>${esc(b.target_page ?? '')}</code> non è ancora nel RAG: o non esiste, o l'ingest non l'ha ancora vista.</p>`;
+
   return `<!doctype html><html lang="it"><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#222;max-width:640px;margin:0 auto;padding:24px">
 <h1 style="font-size:22px;color:${BRAND};margin:0">Briefing settimanale — ${esc(b.keyword)}</h1>
 <p style="color:#666;margin:4px 0 0">Scelta dal backlog. La scrittura è manuale: apri Claude Code sul repo del sito con <code>prompts/genera-articolo.md</code> e il JSON qui sotto.</p>
@@ -128,8 +170,10 @@ export function buildBriefingHtml(b) {
 <table style="border-collapse:collapse;font-size:14px">
 ${riga('keyword', b.keyword)}${riga('cluster', b.cluster)}${riga('volume', b.volume)}${riga('kd', b.kd)}${riga('intent', b.intent)}${riga('tipo', b.content_type)}${riga('pagina target', b.target_page)}
 </table>
-<h2 style="font-size:17px;margin:24px 0 6px;color:${BRAND}">🔎 Cosa esiste già</h2>
+<h2 style="font-size:17px;margin:24px 0 6px;color:${BRAND}">🔎 Cosa esiste già sul sito</h2>
 ${vicine}
+<h2 style="font-size:17px;margin:24px 0 6px;color:${BRAND}">📄 Le sezioni di ${esc(b.target_page ?? 'la pagina target')}</h2>
+${sezioni}
 <h2 style="font-size:17px;margin:24px 0 6px;color:${BRAND}">📋 Briefing da incollare</h2>
 <pre style="background:#f6f6f6;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">${esc(JSON.stringify(b, null, 2))}</pre>
 <hr style="border:none;border-top:1px solid #eee;margin:28px 0 12px">
@@ -148,6 +192,12 @@ const ESEMPIO = {
     { url: 'https://vetreriamonferrina.com/servizi/box-doccia', distanza: 0.2913 },
     { url: 'https://vetreriamonferrina.com/faq', distanza: 0.4107 },
   ],
+  sezioni: [
+    { heading: null, chunk_index: 0, distanza: 0.3812 },
+    { heading: 'Caratteristiche', chunk_index: 1, distanza: 0.4091 },
+    { heading: 'Quando scegliere box doccia', chunk_index: 2, distanza: 0.4405 },
+    { heading: 'Domande frequenti', chunk_index: 3, distanza: 0.4127 },
+  ],
 };
 
 async function main() {
@@ -158,7 +208,7 @@ async function main() {
   const email = argv.includes('--email');
 
   if (argv.includes('--dry-run')) {
-    const b = buildBriefing(ESEMPIO.kw, ESEMPIO.vicine);
+    const b = buildBriefing(ESEMPIO.kw, ESEMPIO.vicine, ESEMPIO.sezioni);
     console.log(email ? buildBriefingHtml(b) : JSON.stringify(b, null, 2));
     return;
   }
@@ -193,8 +243,12 @@ async function main() {
     }
 
     const [vec] = await embed([ragQuery(kw)], 'query', voyage);
-    const { rows: vicine } = await client.query(VICINE_SQL, [`[${vec.join(',')}]`]);
-    const briefing = buildBriefing(kw, vicine);
+    const vettore = `[${vec.join(',')}]`;
+    const { rows: vicine } = await client.query(VICINE_SQL, [vettore]);
+    const { rows: sezioni } = kw.target_page
+      ? await client.query(SEZIONI_SQL, [vettore, kw.target_page])
+      : { rows: [] };
+    const briefing = buildBriefing(kw, vicine, sezioni);
 
     if (!email) {
       console.log(JSON.stringify(briefing, null, 2));

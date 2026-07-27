@@ -55,7 +55,8 @@ flowchart TD
 
     subgraph DB["Supabase, Postgres + pgvector"]
         SNAP["competitor_snapshots"]
-        SITEPG["site_pages"]
+        SITEPG["site_pages<br/>1 vettore per pagina"]
+        CHUNK["site_chunks<br/>1 vettore per sezione"]
         KW["seo_keywords<br/>backlog"]
         LOG["ai_run_log"]
     end
@@ -69,9 +70,11 @@ flowchart TD
     ING --> INGEST --> FC --> VOY --> SNAP
     INGS --> INGSITE --> FC
     SITE --> INGSITE --> SITEPG
+    SITEPG -- "taglia sugli heading" --> CHUNKER["chunk-site.mjs"] --> CHUNK
     BRIEF --> NEXT
     KW -- "candidata" --> NEXT
-    SITEPG -- "cosa esiste già" --> NEXT
+    SITEPG -- "quale pagina copre il tema" --> NEXT
+    CHUNK -- "quali sezioni ha la pagina" --> NEXT
     NEXT --> RS --> PERSONA
     NEXT --> LOG
     PERSONA -- "PR, mai merge" --> SITE
@@ -96,6 +99,16 @@ Due dettagli che sembrano minori e non lo sono.
 La ricerca nel RAG non usa la sola keyword. Provata contro il database reale, la keyword secca è sempre la query peggiore: su `docce` restituiva distanza 0,77 e pescava `/blog` invece di `/servizi/box-doccia`, che è la sua stessa `target_page`. Accodando `cluster` e `target_page` la distanza scende a 0,47 e la pagina giusta arriva prima su tutte e sei le candidate provate.
 
 Dopo l'invio la keyword passa a `briefed`. Senza quella riga lo script sarebbe deterministico e rimanderebbe la stessa candidata ogni lunedì, per sempre. La marcatura avviene dopo l'email e mai prima: se Resend fallisce la riga resta `todo` e torna la settimana dopo, mentre il caso opposto perderebbe la candidata in silenzio.
+
+### Due livelli di RAG
+
+`site_pages` tiene un vettore per pagina intera e risponde a "questo tema esiste già sul sito?", che è la domanda giusta per le 46 keyword `faq`, dove si scrive un pezzo nuovo.
+
+`site_chunks` tiene un vettore per sezione, tagliata sugli heading del markdown. Serve alle 52 keyword `onpage-enrich`, dove la pagina esiste già e la domanda è "com'è fatta e dove ci sta il pezzo nuovo". Il briefing elenca le sezioni della pagina target in ordine di lettura.
+
+Una avvertenza onesta sulle distanze delle sezioni: sono vicine fra loro, con uno scarto misurato fra 0,01 e 0,15. Una pagina di quattro sezioni sul box doccia parla di box doccia in tutte e quattro, quindi il valore di quell'elenco è la struttura, non la classifica. Su un caso su quattro (pulizia e anticalcare) la sezione giusta si stacca davvero, sugli altri no.
+
+I chunk si derivano da `site_pages` senza ri-scrapare: il markdown è già nel database, quindi `chunk-site.mjs` non consuma un credito Firecrawl. Le 29 pagine danno 157 chunk, mediana 453 caratteri.
 
 Nel briefing non entra una riga di testo scrapato. Del RAG escono solo URL e distanze, per scelta: il contenuto delle pagine è materiale di terzi, e ciò che non entra nel briefing non può entrare nel prompt. Le regole per chi scrive stanno in [`prompts/genera-articolo.md`](./prompts/genera-articolo.md), verificabili contro i payload di `test/prompt-injection-fixtures.mjs`.
 
@@ -123,11 +136,13 @@ Nel briefing non entra una riga di testo scrapato. Del RAG escono solo URL e dis
 │   ├── snapshot.mjs            # normalizzazione snapshot + guardrail anti-injection
 │   ├── ingest-gate.mjs         # gate di validità di un run (soglia + lista non vuota)
 │   ├── scope-filter.mjs        # blocklist deterministica sul backlog keyword
+│   ├── chunker.mjs             # taglio del markdown sulle sezioni + filtro navigazione
 │   ├── mailer.mjs              # invio Resend condiviso, con fetch iniettabile
 │   └── ai-log.mjs              # registro attività AI (art. 12), non bloccante
 ├── scripts/
 │   ├── ingest-competitors.mjs  # scraping Firecrawl → embeddings → competitor_snapshots
 │   ├── ingest-site.mjs         # scraping proprio sito → embeddings → site_pages
+│   ├── chunk-site.mjs          # site_pages → sezioni → embeddings → site_chunks (no scrape)
 │   ├── agent-next-task.mjs     # sceglie la keyword, interroga il RAG, spedisce il briefing
 │   ├── keepalive.mjs           # ping DB + purga retention (90gg snapshot, 24 mesi log)
 │   ├── healthcheck.mjs         # health check del sito (403 dal runner CI è atteso)
@@ -155,7 +170,7 @@ Nel briefing non entra una riga di testo scrapato. Del RAG escono solo URL e dis
 | `keepalive`   | lunedì e giovedì       | ping Supabase, health check sito, heartbeat anti-disattivazione, purga retention             |
 | `backup-db`   | lunedì e il 2 del mese | dump dello schema `public` verso Cloudflare R2 (prefissi `weekly/` e `monthly/`)             |
 | `ingest`      | lunedì 09:00 UTC       | scraping competitor verso `competitor_snapshots`, con embedding RAG                          |
-| `ingest-site` | lunedì 09:30 UTC       | scraping del proprio sito verso `site_pages`, la base "cosa esiste già"                      |
+| `ingest-site` | lunedì 09:30 UTC       | scraping del proprio sito verso `site_pages`, poi ricostruzione di `site_chunks`             |
 | `agent`       | lunedì 11:00 UTC       | sceglie la keyword dal backlog e ne spedisce il briefing via email                           |
 | `digest`      | il 2 del mese          | report via email su posizionamento, competitor e stato del backlog                           |
 | `checkly`     | su PR e push su `main` | valida i monitor sulle PR, li deploya su Checkly al merge                                     |
@@ -187,6 +202,8 @@ npm test                      # unit e integration (node:test)
 npm run healthcheck           # health check del sito
 npm run briefing              # briefing su stdout, non invia nulla
 npm run briefing -- --email   # invia davvero e marca la keyword
+npm run chunk                 # rifà i chunk delle pagine cambiate (niente scrape)
+npm run chunk -- --force      # ricostruisce tutti i chunk, dopo modifiche al chunker
 npm run ingest                # ingest competitor (consuma quota Firecrawl e Voyage)
 npm run checkly:test          # valida i monitor Checkly
 ```
