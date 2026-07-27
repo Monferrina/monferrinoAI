@@ -3,7 +3,7 @@
 > Documentazione tecnica del sistema di IA a supporto della conformità al
 > Regolamento (UE) 2024/1689 (AI Act). Base per la revisione legale (DPIA/FRIA).
 >
-> **Ultimo aggiornamento:** 2026-07-26 · **Scadenza compliance target:** 2026-08-02
+> **Ultimo aggiornamento:** 2026-07-27 · **Scadenza compliance target:** 2026-08-02 — **rispettata**, v. §8
 
 ## 1. Identificazione del sistema
 
@@ -157,21 +157,22 @@ fa mai fallire il job tracciato. RLS abilitata + forzata + `revoke` su anon/auth
 
 Dichiarata qui perché «per sempre» non è una politica: è l'assenza di una politica.
 
-| Dato | Dove | Per quanto | Perché |
+| Dato | Dove | Per quanto | Come sparisce |
 |---|---|---|---|
-| Snapshot competitor (`competitor_snapshots`) | Supabase | **24 mesi** dall'ultimo scrape | Servono a vedere come cambiano i contenuti nel tempo; oltre i due anni un confronto SEO non dice più nulla di utile |
-| KB del sito proprio (`site_pages`) | Supabase | Finché la pagina esiste; sostituita a ogni ingest | È uno specchio del sito, non un archivio storico |
-| Registro attività (`ai_run_log`) | Supabase | **24 mesi** | Tracciabilità delle operazioni automatiche (AI Act art. 12). Allineato agli snapshot per non avere log orfani |
-| Backup del DB | Cloudflare R2 | Da **lifecycle rule per prefisso** su R2, non dal codice | Il backup è la rete di sicurezza del free tier Supabase, che non ne fa |
-| Log di esecuzione dei workflow | GitHub Actions | Retention di default GitHub (90 giorni) | Diagnosi a breve termine; il registro durevole è `ai_run_log` |
+| Snapshot competitor (`competitor_snapshots`) | Supabase (`eu-west-3`, Parigi) | **90 giorni** dallo scrape | **Automatico**: `DELETE` in `scripts/keepalive.mjs`, che gira 2×/settimana (lun+gio) → età massima effettiva ~94 giorni |
+| Registro attività (`ai_run_log`) | Supabase | **24 mesi** | **Automatico**: stessa purga nel keepalive. Orizzonte più lungo perché serve alla tracciabilità (art. 12), non a conservare testo |
+| KB del sito proprio (`site_pages`) | Supabase | **Nessuna cancellazione** — v. ceiling | Insert idempotente `ON CONFLICT (url, content_hash) DO NOTHING`: ogni versione diversa di una pagina aggiunge una riga |
+| Backup del DB | Cloudflare R2 | Lifecycle rule per prefisso su R2, non dal codice | Automatico lato R2 |
+| Log di esecuzione dei workflow | GitHub Actions | Retention di default GitHub | Automatico |
 
-Non ci sono dati personali di clienti in questa pipeline (§3.2), quindi la retention
-qui è igiene di ROT — *redundant, obsolete, trivial* — non un obbligo GDPR.
+La retention degli snapshot è un obbligo GDPR di limitazione della conservazione
+(art. 5(1)(e)) perché lo scraping può intercettare PII residua nonostante `redact()`;
+quella di `ai_run_log` e `site_pages` è igiene di ROT — *redundant, obsolete, trivial*.
 
-**Ceiling dichiarato:** la pulizia oltre i 24 mesi è **manuale**, non c'è un cron che
-la esegue. È una scelta: con volumi di poche centinaia di righe l'automazione
-costerebbe più della potatura. Da rivedere se le tabelle crescono di un ordine di
-grandezza.
+**Ceiling dichiarato:** `site_pages` è **append-only**. Contiene solo pagine del sito
+proprio — nessun dato di terzi, nessuna PII di clienti — e cresce di una riga per
+versione pubblicata: poche decine di righe l'anno. Una purga costerebbe più di quel che
+recupera. Da rivedere se il sito passasse a volumi di contenuto molto maggiori.
 
 ### 6.1 Posture di conformità della pipeline Firecrawl
 
@@ -216,16 +217,57 @@ grandezza.
 | Mappa dati e AI (fonte → tabella → chi legge) | ✅ §3.2 |
 | Verifica di output handling | ✅ §4 — review indipendente del 2026-07-26 |
 | Retention dichiarata | ✅ §6.0 — pulizia manuale, ceiling dichiarato |
-| Classificazione definitiva del rischio | ⏳ **valutazione legale** |
-| DPIA + FRIA | ⏳ **supporto legale** (entro 2026-08-02) |
-| Disclosure sui contenuti generati pubblicati sul sito | ⏳ **decisione da prendere prima del go-live della generazione** (v. sotto) |
+| Classificazione del rischio | ✅ **chiusa** in autoclassificazione — v. §8.1 |
+| DPIA + FRIA | ✅ **non dovute** al livello di rischio riscontrato — v. §8.1 |
+| Disclosure sui contenuti generati pubblicati sul sito | ✅ meccanismo pronto sul sito, **a titolo prudenziale** — v. §8.2 |
 
-> **La sola azione con una scadenza naturale.** Quando le proposte di contenuto
-> inizieranno ad arrivare sul sito della vetreria, i pezzi pubblicati dichiareranno
-> l'assistenza dell'IA? È una decisione, non codice: la forma minima è una riga a
-> piè di pezzo. Va presa *prima* del go-live, non dopo — dopo diventa una rettifica.
-> Oggi non è urgente perché in questo repo non esiste alcun modello generativo
-> (§3.1.1), ma il momento in cui lo diventerà è prevedibile.
+### 8.1 Chiusura della classificazione (2026-07-27)
+
+Questa riga era rimasta `⏳ valutazione legale` mentre la classificazione **era già
+stata chiusa** il 2026-07-05 in [`ai-act-classification.md`](./ai-act-classification.md).
+I due documenti si contraddicevano; vince il dossier di classificazione, e questa
+tabella ora lo rispecchia.
+
+**Esito:** Glassy fuori dall'ambito (albero decisionale deterministico, non un sistema
+di IA ai sensi dell'art. 3(1)); MonferrinoSEO a **rischio minimo** (nessuna finalità
+dell'Allegato III, uso interno, nessuna interfaccia verso utenti finali).
+
+**Perché è chiusa senza revisione legale, e va detto chiaramente:** per il livello di
+rischio riscontrato l'autoclassificazione documentata è proporzionata — la firma di un
+professionista non è un requisito di legge a questo livello, e il regolamento non
+prevede né registrazione né valutazione di conformità per il rischio minimo. **Non è
+una consulenza legale.** Chi legge deve poterlo sapere senza andarlo a cercare.
+
+**Conseguenza su DPIA e FRIA:** non dovute. La FRIA (art. 27) riguarda i sistemi ad
+alto rischio dell'Allegato III; la DPIA (GDPR art. 35) scatta su trattamenti a rischio
+elevato, che qui non ricorrono — nessuna decisione automatizzata su persone, nessuna
+profilazione, PII residua minimizzata e con retention di 90 giorni.
+
+**Trigger che riaprono la valutazione:** Glassy passa a NLP/LLM o raccoglie lead; l'agente
+inizia a pubblicare senza human gate; il software viene ceduto o licenziato a terzi.
+
+### 8.2 Disclosure sui contenuti generati — prudenziale, non obbligatoria
+
+**L'obbligo dell'art. 50(4) non scatta**, per due ragioni indipendenti e verificate sul
+testo del regolamento:
+
+1. Riguarda i testi *«published with the purpose of informing the public on matters of
+   public interest»*. Un articolo su come scegliere il vetro di un box doccia è contenuto
+   commerciale-informativo sui propri prodotti, non materia di interesse pubblico.
+2. Anche ammesso il punto 1, si applicherebbe l'esenzione letterale: *«where the
+   AI-generated content has undergone a process of human review or editorial control and
+   where a natural or legal person holds editorial responsibility for the publication»*.
+   È esattamente il human gate su ogni PR (§4), con la responsabilità editoriale in capo
+   a Vetreria Monferrina.
+
+**Si fa comunque**, con la stessa logica già adottata per Glassy: la disclosure c'è per
+prudenza e trasparenza verso il lettore, non perché imposta. Il meccanismo è pronto sul
+sito — campo `aiAssisted` su `BlogPost` e riga a piè di pezzo — e oggi **nessun articolo
+lo attiva**, perché nessuno è assistito da IA. Il giorno del go-live basta il flag.
+
+Distinguere «lo faccio perché devo» da «lo faccio perché è giusto» non è pedanteria: se
+un domani la disclosure andasse rimossa o modificata, chi decide deve sapere che sta
+toccando una scelta e non un obbligo.
 
 > **Nota normativa:** monitorare il *Digital Omnibus* — possibile proroga degli
 > obblighi alto-rischio (ipotesi 2027-12-02), non ancora in vigore. La scadenza di
