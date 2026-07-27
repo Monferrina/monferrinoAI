@@ -2,21 +2,23 @@
 
 Cosa l'agente verifica/registra a ogni esecuzione. **Ogni run logga su Supabase** (NON Notion): tabella di log con timestamp, tipo run, azioni proposte, decisioni, esito, supervisione umana (per AI Act).
 
-## Run settimanale (leggera)
-- [x] Keep-alive Supabase (`.github/workflows/keepalive.yml`, lunedì → evita pausa progetto free).
+## Run settimanale
+- [x] Keep-alive Supabase + purga retention (`.github/workflows/keepalive.yml`, lunedì e giovedì → evita pausa progetto free).
 - [x] Health check sito: home + sitemap + campione pagine (status, tempo). `scripts/healthcheck.mjs` nel workflow keep-alive; fallisce → alert GitHub.
-- [ ] Log esito su Supabase.
+- [x] Ingest competitor → `competitor_snapshots` (`.github/workflows/ingest.yml`, lunedì 09:00 UTC, scrape→embed→insert idempotente).
+- [x] Scrape sito live → `site_pages` + chunking → `site_chunks` (`.github/workflows/ingest-site.yml`, lunedì 09:30 UTC; i chunk derivano dal DB senza scrape aggiuntivo).
+- [x] Briefing settimanale (`.github/workflows/agent.yml`, lunedì 11:00 UTC): keyword dal backlog + RAG → email. La scrittura resta in sessione, con revisione umana.
+- [x] Backup DB su R2 (`.github/workflows/backup-db.yml`, lunedì 03:00 UTC, prefix `weekly/`).
+- [x] Log esito su Supabase: i job automatici scrivono in `ai_run_log` (5 job — il keep-alive non logga, esegue la purga).
 
-## Run mensile (completa)
-- [x] Ingest competitor → `competitor_snapshots` (`.github/workflows/ingest.yml`, 1° del mese, scrape→embed→insert idempotente).
-- [ ] Scrape sito live (stato corrente, prima di ogni analisi).
-- [x] Competitor: Firecrawl `monitor` (AI-judge) su 7 domini / 30 pagine → diff contenuti. Vedi [`monitor/README.md`](monitor/README.md).
+## Run mensile
+- [x] Competitor: Firecrawl `monitor` (AI-judge) su 7 domini / 30 pagine → diff contenuti, il 1° del mese. Vedi [`monitor/README.md`](monitor/README.md).
+- [x] Digest email (Resend, `.github/workflows/digest.yml`, il 2 del mese).
+- [x] Backup mensile su R2 (il 2 del mese, prefix `monthly/`).
 - [ ] Drift SEO sulle pagine chiave (regressioni meta/heading/schema).
 - [ ] CrUX snapshot (PageSpeed Insights API) → Supabase.
-- [ ] Blog: 1 articolo (research fonti → write → `humanizer` → schema/SEO check).
+- [ ] Blog: 1 articolo, a partire dal briefing del lunedì (`prompts/genera-articolo.md` → write → `humanizer` → schema/SEO check).
 - [ ] llms.txt: micro-PR di aggiornamento dopo pubblicazione blog.
-- [ ] Digest email (Resend) a Giuseppe + Martina.
-- [ ] Log completo su Supabase (azioni, decisioni, oversight).
 
 ## Ingest iniziale (una tantum, prima dei run a regime)
 - [x] **SAMRUSH ingerito (29/6)** → tabelle `seo_keywords` (489 kw: vol/KD/cpc/cluster/source + target_page/intent/is_noise/content_type/status) e `seo_rankings` (37: 16 nostre + 21 vetrariacasalese.it). Dati strutturati, no embedding. Le 10 analisi `.md` restano da embeddare (Voyage) solo quando si definisce il retrieval RAG per il blog.
