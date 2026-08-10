@@ -26,9 +26,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "checkly": "^8.17.1",
-    "eslint": "^10.8.0",
-    "globals": "^17.8.0"
+    "checkly": "^8.19.0",
+    "eslint": "^10.8.1",
+    "globals": "^17.9.0"
   },
   "overrides": {
     "minimatch": {
