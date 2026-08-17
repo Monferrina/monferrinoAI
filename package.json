@@ -22,13 +22,13 @@
     "checkly:deploy": "checkly deploy"
   },
   "dependencies": {
-    "pg": "^8.22.0"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "checkly": "^8.17.1",
-    "eslint": "^10.8.0",
-    "globals": "^17.8.0"
+    "checkly": "^8.21.0",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0"
   },
   "overrides": {
     "minimatch": {
